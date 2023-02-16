@@ -92,6 +92,117 @@ def load_ENAS_graphs(name, n_types=6, fmt='igraph', rand_seed=0, with_y=True, bu
     random.Random(rand_seed).shuffle(g_list)
     return g_list[:int(ng*0.9)], g_list[int(ng*0.9):], graph_args
 
+def decode_EQ_to_igraph(prefix, operand_list, operator_dict):
+    OPERATORS = {
+        # Elementary functions
+        "add": 2,
+        "sub": 2,
+        "mul": 2,
+        "div": 2,
+        "pow": 2,
+        "inv": 1,
+        "pow2": 1,
+        "pow3": 1,
+        "pow4": 1,
+        "pow5": 1,
+        "sqrt": 1,
+        "exp": 1,
+        "ln": 1,
+        "abs": 1,
+
+        # Trigonometric Functions
+        "sin": 1,
+        "cos": 1,
+        "tan": 1,
+
+        # Trigonometric Inverses
+        "asin": 1,
+        "acos": 1,
+        "atan": 1,
+
+        # Hyperbolic Functions
+        "sinh": 1,
+        "cosh": 1,
+        "tanh": 1,
+        "coth": 1,
+    }
+
+    postfix = list(reversed(prefix))
+    # n = len(postfix)
+    g = igraph.Graph(directed=True)
+    var_count = len(operand_list)
+    g.add_vertices(var_count + 1)
+    g.vs[0]['type'] = 0  # input node
+    vertex_count = 1
+    vertex_op_dict = {}
+
+    for var_idx, var_name in enumerate(operand_list):
+        g.vs[var_idx + 1]['type'] = var_idx + 2#input variable
+        vertex_op_dict[var_name] = var_idx + 1
+        g.add_edge(0, var_idx + 1)
+        vertex_count += 1
+    # print('vcount1', g.vcount())
+
+    eq_stack = []
+    for item in postfix:
+        # print(eq_stack)
+        if item not in operator_dict:
+            eq_stack.append(item)
+        else:
+            if OPERATORS[item] == 2:
+                oper1 = eq_stack.pop()
+                op1_vertex = vertex_op_dict[oper1]
+                oper2 = eq_stack.pop()
+                op2_vertex = vertex_op_dict[oper2]
+                g.add_vertices(1)
+                g.vs[vertex_count]['type'] = operator_dict[item] + var_count + 2
+                vertex_op_dict['op' + str(vertex_count)] = vertex_count
+                eq_stack.append('op' + str(vertex_count))
+                # print('vcount2', g.vcount(), op1_vertex, op2_vertex, vertex_count)
+                g.add_edge(op1_vertex, vertex_count)
+                g.add_edge(op2_vertex, vertex_count)
+                vertex_count += 1
+            else:
+                oper = eq_stack.pop()
+                oper_vertex = vertex_op_dict[oper]
+                g.add_vertices(1)
+                g.vs[vertex_count]['type'] = operator_dict[item] + var_count + 2
+                vertex_op_dict['op' + str(vertex_count)] = vertex_count
+                eq_stack.append('op' + str(vertex_count))
+                # print('vcount3', g.vcount(), oper_vertex, vertex_count)
+                g.add_edge(oper_vertex, vertex_count)
+                vertex_count += 1
+    g.add_vertices(1)
+    g.vs[vertex_count]['type'] = 1  # output node
+    g.add_edge(vertex_count - 1, vertex_count)
+    vertex_count += 1
+    return g, vertex_count
+
+
+def load_EQ_graphs(name, rand_seed=0):
+    g_list = []
+    max_n = 0
+    with open('data/%s.txt' % name, 'r') as f:
+        operator_dict = eval(f.readline())
+        operand_list = eval(f.readline())
+        for i, row in enumerate(tqdm(f)):
+            if row is None:
+                break
+            row = eval(row)
+            y = 0.0
+            g, n = decode_EQ_to_igraph(row, operand_list, operator_dict)
+            max_n = max(max_n, n)
+            g_list.append((g, y))
+    graph_args.num_vertex_type = len(operand_list) + len(operator_dict.keys()) + 2
+    graph_args.max_n = max_n  # maximum number of nodes
+    graph_args.START_TYPE = 0  # predefined start vertex type
+    graph_args.END_TYPE = 1  # predefined end vertex type
+    ng = len(g_list)
+    print('# node types: %d' % graph_args.num_vertex_type)
+    print('maximum # nodes: %d' % graph_args.max_n)
+    random.Random(rand_seed).shuffle(g_list)
+    return g_list[:int(ng * 0.9)], g_list[int(ng * 0.9):], graph_args
+
 
 def one_hot(idx, length):
     idx = torch.LongTensor([idx]).unsqueeze(0)

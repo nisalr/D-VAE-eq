@@ -119,6 +119,8 @@ else:
     elif args.data_type == 'BN':
         train_data, test_data, graph_args = load_BN_graphs(args.data_name, n_types=args.nvt,
                                                            fmt=input_fmt)
+    elif args.data_type == 'EQ':
+        train_data, test_data, graph_args = load_EQ_graphs(args.data_name)
     with open(pkl_name, 'wb') as f:
         pickle.dump((train_data, test_data, graph_args), f)
 
