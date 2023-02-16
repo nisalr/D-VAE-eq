@@ -37,6 +37,7 @@ from sympy_utils import remove_mul_const, has_inf_nan, has_I, simplify
 from collections import Counter
 from dclasses import GeneratorDetails
 import igraph
+from util import is_valid_EQ
 
 CLEAR_SYMPY_CACHE_FREQ = 10000
 
@@ -766,16 +767,16 @@ if __name__=="__main__":
     for i in range(eq_count):
         try:
             expr, var = gen.generate_equation(rng=np.random)
-            expr_list.append(expr)
             # print('expr', expr)
         except ValueErrorExpression:
             continue
         # print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
 
         g, vertex_count = gen.decode_EQ_to_igraph(expr, operand_list, op_dict)
-        # g.vs['label'] = g.vs['type']
-        # layout = g.layout("kk")
-        # igraph.plot(g, layout=layout, target='plot.pdf')
+        valid_eq = is_valid_EQ(g)
+        if not valid_eq:
+            continue
+        expr_list.append(expr)
         v_count.append(vertex_count)
     print(max(v_count), len(v_count))
     with open(dataset_file, 'w') as f:

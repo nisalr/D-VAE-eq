@@ -630,6 +630,22 @@ def is_valid_ENAS(g, START_TYPE=0, END_TYPE=1):
     # the output node n must not have edges other than from n-1
     res = res and (g.vs[g.vcount()-1].indegree() == 1)
     return res
+
+def is_valid_EQ(g, START_TYPE=0, END_TYPE=1):
+    # first need to be a valid DAG computation graph
+    res = is_valid_DAG(g, START_TYPE, END_TYPE)
+    if not res:
+        return res
+    # in addition, node i must connect to node i+1
+    binary_vertex = g.vs.select(type_in=[4, 5]).indices
+    binary_degree = g.degree(binary_vertex, mode='in')
+    if binary_degree and not(max(binary_degree) == 2 and min(binary_degree) == 2):
+        return False
+    unary_vertex = g.vs.select(type_in=[6, 7]).indices
+    unary_degree = g.degree(unary_vertex, mode='in')
+    if unary_degree and not(max(unary_degree) == 1 and min(unary_degree) == 1):
+        return False
+    return True
     
 
 def is_valid_BN(g, START_TYPE=0, END_TYPE=1, nvt=10):

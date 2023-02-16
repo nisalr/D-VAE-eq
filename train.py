@@ -369,6 +369,11 @@ def prior_validity(scale_to_train_range=False):
                         if is_valid_BN(g, graph_args.START_TYPE, graph_args.END_TYPE):
                             n_valid += 1
                             G_valid.append(g)
+                elif args.data_type == 'EQ':
+                    for g in g_batch:
+                        if is_valid_EQ(g, graph_args.START_TYPE, graph_args.END_TYPE):
+                            n_valid +=1
+                            G_valid.append(g)
             cnt = 0
     r_valid = n_valid / (n_latent_points * decode_times)
     print('Ratio of valid decodings from the prior: {:.4f}'.format(r_valid))
