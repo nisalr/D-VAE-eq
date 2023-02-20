@@ -21,6 +21,7 @@ sys.path.insert(0, '../')
 from models import *
 from util import *
 from evaluate_BN import Eval_BN
+from evaluate_EQ import Eval_EQ
 from shutil import copy
 
 '''Experiment settings'''
@@ -128,6 +129,8 @@ if data_type == 'ENAS':
     from evaluation import *
     eva = Eval_NN()  # build the network acc evaluater
                      # defined in ../software/enas/src/cifar10/evaluation.py
+elif data_type == 'EQ':
+    eva = Eval_EQ(sr_dataset_path='%s/../sr_evaluation/sr_dataset_0.csv' % os.path.dirname(os.path.realpath(__file__)))
 
 data = loadmat(data_dir + '{}_latent_epoch{}.mat'.format(data_name, checkpoint))  # load train/test data
 #data = loadmat(data_dir + '{}_latent.mat'.format(data_name))  # load train/test data
