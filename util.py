@@ -16,6 +16,7 @@ import pdb
 import pygraphviz as pgv
 import sys
 from PIL import Image
+import sympy
 
 # create a parser to save graph arguments
 cmd_opt = argparse.ArgumentParser()
@@ -397,6 +398,7 @@ def decode_igraph_to_BN_adj(g):
 
 
 def decode_igraph_to_EQ(g):
+<<<<<<< Updated upstream
     SYMPY_OPERATORS = {
         # Elementary functions
         sympy.Add: "add",
@@ -502,9 +504,13 @@ def decode_from_latent_space(
                     valid_arcs[i].append(cur)
             elif data_type == 'EQ':
                 if is_valid_EQ(arc, model.START_TYPE, model.END_TYPE):
+<<<<<<< Updated upstream
                     cur = decode_igraph_to_EQ(arc)  # a flat BN adjacency matrix string
                     if return_igraph:
                         str2igraph[cur] = arc
+=======
+                    cur = decode_igraph_to_EQ(arc)
+>>>>>>> Stashed changes
                     valid_arcs[i].append(cur)
         pbar.set_description("Check validity for {}/{}".format(i, latent_points.shape[0]))
 
