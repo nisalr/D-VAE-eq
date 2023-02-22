@@ -422,7 +422,7 @@ def decode_igraph_to_EQ(g):
         sympy.tanh: "tanh",
 
     }
-    with open('data/operator_operand_dict.txt') as f:
+    with open('../data/operator_operand_dict.txt') as f:
         operator_dict = eval(f.readline())
         inv_op = {v: k for k, v in operator_dict.items()}
         inv_sympy = {v: k for k, v in SYMPY_OPERATORS.items()}
@@ -447,7 +447,7 @@ def decode_igraph_to_EQ(g):
                 vertex_op = inv_op[vertex_type - 2 - 2]
                 sym_list[idx] = inv_sympy[vertex_op](op1)
 
-    return sym_list[-2]
+    return str(sym_list[-2])
 
 
 

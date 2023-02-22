@@ -123,6 +123,8 @@ random_as_test = args.random_as_test
 lr = 0.0005  # the learning rate to train the SGP model
 max_iter = 100  # how many iterations to optimize the SGP each time
 num_points = 5
+train_points = 10
+test_points = 10
 
 # architecture performance evaluator
 if data_type == 'ENAS':
@@ -198,14 +200,15 @@ for rand_idx in range(1,11):
     if random_as_train:
         print("Generating random points from the latent space as initial train data")
         #random_inputs = torch.randn(1000, nz).cuda()
-        random_inputs = np.random.randn(1000, nz) * X_train.std(0) + X_train.mean(0)
+        random_inputs = np.random.randn(train_points, nz) * X_train.std(0) + X_train.mean(0)
         random_inputs = torch.FloatTensor(random_inputs).cuda()
         valid_arcs_random = decode_from_latent_space(random_inputs, model, num_points, max_n, False, data_type)
         print("Evaluating random points")
         random_scores = []
         max_random_score = -1e8
         for i in range(len(valid_arcs_random)):
-            arc = valid_arcs_random[ i ] 
+            arc = valid_arcs_random[ i ]
+            print(arc)
             if arc is not None:
                 score = -eva.eval(arc)
                 if score > max_random_score:
@@ -246,7 +249,7 @@ for rand_idx in range(1,11):
     if random_as_test:
         print("Generating random points from the latent space as testing data")
         #random_inputs = torch.randn(100, nz).cuda()
-        random_inputs = np.random.randn(100, nz) * X_train.std(0) + X_train.mean(0)
+        random_inputs = np.random.randn(test_points, nz) * X_train.std(0) + X_train.mean(0)
         random_inputs = torch.FloatTensor(random_inputs).cuda()
         valid_arcs_random = decode_from_latent_space(random_inputs, model, num_points, max_n, False, data_type)
 
@@ -384,6 +387,7 @@ for rand_idx in range(1,11):
         testll = np.mean(sps.norm.logpdf(pred - y_test, scale = np.sqrt(uncert)))
         print('Test RMSE: ', error)
         print('Test ll: ', testll)
+        print('text pearson 1', pred.shape, y_test.shape)
         pearson = float(pearsonr(pred, y_test)[0])
         print('Pearson r: ', pearson)
         with open(save_dir + 'Test_RMSE_ll.txt', 'a') as test_file:
@@ -415,7 +419,8 @@ for rand_idx in range(1,11):
             testll = np.mean(sps.norm.logpdf(pred - y_test2, scale = np.sqrt(uncert)))
             print('Random Test RMSE: ', error)
             print('Random Test ll: ', testll)
-            pearson = float(pearsonr(pred, y_test2)[0])
+            print(pred.shape, y_test2.shape)
+            pearson = 0 #float(pearsonr(pred, y_test2)[0])
             print('Pearson r: ', pearson)
             with open(save_dir + 'Random_Test_RMSE_ll.txt', 'a') as test_file:
                 test_file.write('Random Test RMSE: {:.4f}, ll: {:.4f}, Pearson r: {:.4f}\n'.format(error, testll, pearson))
@@ -474,7 +479,8 @@ for rand_idx in range(1,11):
         print("Evaluating selected points")
         scores = []
         for i in range(len(valid_arcs_final)):
-            arc = valid_arcs_final[ i ] 
+            arc = valid_arcs_final[ i ]
+            print(arc)
             if arc is not None:
                 score = -eva.eval(arc)
                 score = (score - mean_y_train) / std_y_train
@@ -532,7 +538,7 @@ for rand_idx in range(1,11):
             elif data_type == 'BN':
                 row = adjstr_to_BN(best_arc)
                 g_best, _ = decode_BN_to_igraph(row)
-            plot_DAG(g_best, save_dir, 'best_arc_iter_{}'.format(iteration), data_type=data_type, pdf=True)
+            # plot_DAG(g_best, save_dir, 'best_arc_iter_{}'.format(iteration), data_type=data_type, pdf=True)
 
         iteration += 1
         print(iteration)
