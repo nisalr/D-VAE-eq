@@ -38,7 +38,7 @@ from sympy_utils import remove_mul_const, has_inf_nan, has_I, simplify
 from collections import Counter
 from dclasses import GeneratorDetails
 import igraph
-from util import is_valid_EQ
+from util import is_valid_EQ, decode_igraph_to_EQ
 
 CLEAR_SYMPY_CACHE_FREQ = 10000
 
@@ -760,27 +760,30 @@ if __name__=="__main__":
     dataset_file = '../data/eq_structures.txt'
     params = GeneratorDetails(**params)
     gen = Generator(params)
-    eq_count = 100000
+    eq_count = 100
+
     test_dataset_count = 1
     v_count = []
     expr_list = []
     op_dict = {'add': 0, 'mul': 1, 'sin': 2, 'exp': 3}
     operand_list = params.variables
-    # for i in range(eq_count):
-    #     try:
-    #         expr, var = gen.generate_equation(rng=np.random)
-    #         # print('expr', expr)
-    #     except ValueErrorExpression:
-    #         continue
-    #     # print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
-    #
-    #     g, vertex_count = gen.decode_EQ_to_igraph(expr, operand_list, op_dict)
-    #     valid_eq = is_valid_EQ(g)
-    #     if not valid_eq:
-    #         continue
-    #     expr_list.append(expr)
-    #     v_count.append(vertex_count)
-    # print(max(v_count), len(v_count))
+    for i in range(eq_count):
+        try:
+            expr, var = gen.generate_equation(rng=np.random)
+            # print('expr', expr)
+        except ValueErrorExpression:
+            continue
+        # print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
+
+        g, vertex_count = gen.decode_EQ_to_igraph(expr, operand_list, op_dict)
+        print(decode_igraph_to_EQ(g))
+        print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
+        valid_eq = is_valid_EQ(g)
+        if not valid_eq:
+            continue
+        expr_list.append(expr)
+        v_count.append(vertex_count)
+    print(max(v_count), len(v_count))
     # with open(dataset_file, 'w') as f:
     #     f.write(str(op_dict))
     #     f.write('\n')
@@ -790,33 +793,33 @@ if __name__=="__main__":
     #         f.write(str(expr))
     #         f.write('\n')
 
-    for dataset_num in range(test_dataset_count):
-        valid_expr = False
-        while not valid_expr:
-            try:
-                expr, var = gen.generate_equation(rng=np.random)
-                g, vertex_count = gen.decode_EQ_to_igraph(expr, operand_list, op_dict)
-                valid_eq = is_valid_EQ(g)
-                if not valid_eq:
-                    continue
-                valid_expr = True
-                # print('expr', expr)
-            except ValueErrorExpression:
-                continue
-        infix_expr = gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var)
-        print(infix_expr)
-        sympy_expr = parse_expr(infix_expr)
-        print(sympy_expr)
-        x1_vals = np.random.rand(10000) * 4 + 1
-        x2_vals = np.random.rand(10000) * 4 + 1
-        y_vals = []
-        for i in range(10000):
-            cur_x1 = x1_vals[i]
-            cur_x2 = x2_vals[i]
-            cur_y = sympy_expr.subs({'x_1':cur_x1, 'x_2':cur_x2})
-            y_vals.append(cur_y)
-        df = pd.DataFrame({'x_1': x1_vals, 'x_2': x2_vals, 'y': y_vals})
-        df.to_csv('../sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), index=False)
+    # for dataset_num in range(test_dataset_count):
+    #     valid_expr = False
+    #     while not valid_expr:
+    #         try:
+    #             expr, var = gen.generate_equation(rng=np.random)
+    #             g, vertex_count = gen.decode_EQ_to_igraph(expr, operand_list, op_dict)
+    #             valid_eq = is_valid_EQ(g)
+    #             if not valid_eq:
+    #                 continue
+    #             valid_expr = True
+    #             # print('expr', expr)
+    #         except ValueErrorExpression:
+    #             continue
+    #     infix_expr = gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var)
+    #     print(infix_expr)
+    #     sympy_expr = parse_expr(infix_expr)
+    #     print(sympy_expr)
+    #     x1_vals = np.random.rand(10000) * 4 + 1
+    #     x2_vals = np.random.rand(10000) * 4 + 1
+    #     y_vals = []
+    #     for i in range(10000):
+    #         cur_x1 = x1_vals[i]
+    #         cur_x2 = x2_vals[i]
+    #         cur_y = sympy_expr.subs({'x_1':cur_x1, 'x_2':cur_x2})
+    #         y_vals.append(cur_y)
+    #     df = pd.DataFrame({'x_1': x1_vals, 'x_2': x2_vals, 'y': y_vals})
+    #     df.to_csv('../sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), index=False)
 
 
 

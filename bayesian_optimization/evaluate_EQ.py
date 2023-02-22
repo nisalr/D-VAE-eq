@@ -10,6 +10,7 @@ class Eval_EQ(object):
         self.sr_dataset = df
 
     def eval(self, input_string):
+        '''generates score for a given equation'''
         sym_eq = parse_expr(input_string)
         x1_vals = self.df['x_1'].values
         x2_vals = self.df['x_2'].values
@@ -21,4 +22,4 @@ class Eval_EQ(object):
             cur_x2 = x2_vals.iloc[i]
             pred_y = sym_eq.subs({'x_1':cur_x1, 'x_2':cur_x2})
             pred_y_list.append(pred_y)
-        return mean_squared_error(y_vals, pred_y_list)
+        return mean_squared_error(y_vals, pred_y_list)**0.5

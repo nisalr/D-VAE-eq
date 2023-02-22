@@ -2,6 +2,7 @@ from __future__ import print_function
 import gzip
 import pickle
 import numpy as np
+import sympy
 import torch
 from torch import nn
 import random
@@ -395,6 +396,61 @@ def decode_igraph_to_BN_adj(g):
     return ' '.join(str(x) for x in adj.reshape(-1))
 
 
+def decode_igraph_to_EQ(g):
+    SYMPY_OPERATORS = {
+        # Elementary functions
+        sympy.Add: "add",
+        sympy.Mul: "mul",
+        sympy.Pow: "pow",
+        sympy.exp: "exp",
+        sympy.log: "ln",
+        sympy.Abs: 'abs',
+
+        # Trigonometric Functions
+        sympy.sin: "sin",
+        sympy.cos: "cos",
+        sympy.tan: "tan",
+
+        # Trigonometric Inverses
+        sympy.asin: "asin",
+        sympy.acos: "acos",
+        sympy.atan: "atan",
+
+        # Hyperbolic Functions
+        sympy.sinh: "sinh",
+        sympy.cosh: "cosh",
+        sympy.tanh: "tanh",
+
+    }
+    with open('data/operator_operand_dict.txt') as f:
+        operator_dict = eval(f.readline())
+        inv_op = {v: k for k, v in operator_dict.items()}
+        inv_sympy = {v: k for k, v in SYMPY_OPERATORS.items()}
+    top_sort = g.topological_sorting()
+    sym_list = [None] * g.vcount()
+    for idx in top_sort:
+        if g.vs[idx]['type'] == 2:
+            sym_list[idx] = sympy.Symbol('x_1')
+        elif g.vs[idx]['type'] == 3:
+            sym_list[idx] = sympy.Symbol('x_2')
+        elif g.vs[idx]['type'] not in [0, 1]:
+            neighb = g.neighbors(idx, mode='in')
+            if len(neighb) == 2:
+                op1 = sym_list[neighb[0]]
+                op2 = sym_list[neighb[1]]
+                vertex_type = g.vs[idx]['type']
+                vertex_op = inv_op[vertex_type - 2 - 2]
+                sym_list[idx] = inv_sympy[vertex_op](op1, op2)
+            else:
+                op1 = sym_list[neighb[0]]
+                vertex_type = g.vs[idx]['type']
+                vertex_op = inv_op[vertex_type - 2 - 2]
+                sym_list[idx] = inv_sympy[vertex_op](op1)
+
+    return sym_list[-2]
+
+
+
 def adjstr_to_BN(row):
     # input: '0 1 0 0 0 1 0 0 0 0 0 0 1 1 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 1 1 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0'
     # output: [[0], [1, 1], [2, 0, 0], [3, 0, 0, 0], [4, 0, 1, 0, 0], [5, 1, 1, 0, 0, 0], [6, 0, 1, 0, 0, 1, 0], [7, 0, 0, 0, 1, 1, 1, 0]]
@@ -441,6 +497,12 @@ def decode_from_latent_space(
             elif data_type == 'BN':  
                 if is_valid_BN(arc, model.START_TYPE, model.END_TYPE, nvt=model.nvt):
                     cur = decode_igraph_to_BN_adj(arc)  # a flat BN adjacency matrix string
+                    if return_igraph:
+                        str2igraph[cur] = arc
+                    valid_arcs[i].append(cur)
+            elif data_type == 'EQ':
+                if is_valid_EQ(arc, model.START_TYPE, model.END_TYPE):
+                    cur = decode_igraph_to_EQ(arc)  # a flat BN adjacency matrix string
                     if return_igraph:
                         str2igraph[cur] = arc
                     valid_arcs[i].append(cur)
