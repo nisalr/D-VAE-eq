@@ -24,7 +24,7 @@ class Eval_EQ(object):
             cur_x2 = x2_vals[i]
             pred_y = float(sym_eq.subs({'x_1': cur_x1, 'x_2': cur_x2}))
             pred_y_list.append(pred_y)
-        return mean_squared_error(y_vals, pred_y_list)**0.5
+        return -mean_squared_error(y_vals, pred_y_list)**0.5
 
 if __name__ == '__main__':
     eva = Eval_EQ('../sr_evaluation/sr_dataset_0.csv')
