@@ -398,7 +398,6 @@ def decode_igraph_to_BN_adj(g):
 
 
 def decode_igraph_to_EQ(g):
-<<<<<<< Updated upstream
     SYMPY_OPERATORS = {
         # Elementary functions
         sympy.Add: "add",
@@ -430,7 +429,9 @@ def decode_igraph_to_EQ(g):
         inv_sympy = {v: k for k, v in SYMPY_OPERATORS.items()}
     top_sort = g.topological_sorting()
     sym_list = [None] * g.vcount()
+    print('top sort', top_sort)
     for idx in top_sort:
+        print('sym list', sym_list, idx)
         if g.vs[idx]['type'] == 2:
             sym_list[idx] = sympy.Symbol('x_1')
         elif g.vs[idx]['type'] == 3:
@@ -504,13 +505,10 @@ def decode_from_latent_space(
                     valid_arcs[i].append(cur)
             elif data_type == 'EQ':
                 if is_valid_EQ(arc, model.START_TYPE, model.END_TYPE):
-<<<<<<< Updated upstream
                     cur = decode_igraph_to_EQ(arc)  # a flat BN adjacency matrix string
                     if return_igraph:
                         str2igraph[cur] = arc
-=======
                     cur = decode_igraph_to_EQ(arc)
->>>>>>> Stashed changes
                     valid_arcs[i].append(cur)
         pbar.set_description("Check validity for {}/{}".format(i, latent_points.shape[0]))
 
@@ -711,6 +709,11 @@ def is_valid_EQ(g, START_TYPE=0, END_TYPE=1):
         return False
     unary_vertex = g.vs.select(type_in=[6, 7]).indices
     unary_degree = g.degree(unary_vertex, mode='in')
+    in_vertex = g.vs.select(type_in=[0]).indices[0]
+    in_neighb = g.neighbors(in_vertex, mode='out')
+    for vertex in in_neighb:
+        if g.vs[vertex]['type'] not in [2, 3]:
+            return False
     if unary_degree and not(max(unary_degree) == 1 and min(unary_degree) == 1):
         return False
     return True

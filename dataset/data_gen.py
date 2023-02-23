@@ -806,6 +806,7 @@ if __name__=="__main__":
                 # print('expr', expr)
             except ValueErrorExpression:
                 continue
+        print(g)
         infix_expr = gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var)
         print(infix_expr)
         sympy_expr = parse_expr(infix_expr)
@@ -819,7 +820,8 @@ if __name__=="__main__":
             cur_y = sympy_expr.subs({'x_1': cur_x1, 'x_2': cur_x2})
             y_vals.append(cur_y)
         df = pd.DataFrame({'x_1': x1_vals, 'x_2': x2_vals, 'y': y_vals})
-        df.to_csv('sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), index=False)
+        df['eq'] = infix_expr
+        # df.to_csv('sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), index=False)
 
 
 
