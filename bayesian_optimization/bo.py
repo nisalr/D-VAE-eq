@@ -122,9 +122,9 @@ random_as_test = args.random_as_test
 # other BO hyperparameters
 lr = 0.0005  # the learning rate to train the SGP model
 max_iter = 100  # how many iterations to optimize the SGP each time
-num_points = 5
-train_points = 10
-test_points = 10
+num_points = 50
+train_points = 100
+test_points = 100
 
 # architecture performance evaluator
 if data_type == 'ENAS':

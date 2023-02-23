@@ -431,7 +431,6 @@ def decode_igraph_to_EQ(g):
     sym_list = [None] * g.vcount()
     print('top sort', top_sort)
     for idx in top_sort:
-        print('sym list', sym_list, idx)
         if g.vs[idx]['type'] == 2:
             sym_list[idx] = sympy.Symbol('x_1')
         elif g.vs[idx]['type'] == 3:
