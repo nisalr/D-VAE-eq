@@ -753,8 +753,8 @@ with open(test_results_name, 'a') as result_file:
             epoch, Nll, acc, r_valid) + 
             " r_unique: {:.4f} r_novel: {:.4f} pred_rmse: {:.4f}\n".format(
             r_unique, r_novel, pred_rmse))
-interpolation_exp2(epoch)
-smoothness_exp(epoch)
-interpolation_exp3(epoch)
+#interpolation_exp2(epoch)
+#smoothness_exp(epoch)
+#interpolation_exp3(epoch)
 
-pdb.set_trace()
+#pdb.set_trace()
