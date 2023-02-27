@@ -31,4 +31,4 @@ eval "$(conda shell.bash hook)"
 conda activate dvae
 #Run program
 cd ..
-python train.py --data-name eq_structures --data-type EQ --save-interval 100 --save-appendix _DVAE_EQ_30K_300epoch --epochs 300 --lr 1e-4 --model DVAE --bidirectional --nz 56 --batch-size 32
+python train.py --data-name eq_structures_2 --data-type EQ --save-interval 100 --save-appendix _DVAE_EQ_20K_300epoch --epochs 300 --lr 1e-4 --model DVAE --bidirectional --nz 56 --batch-size 32

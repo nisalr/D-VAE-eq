@@ -423,7 +423,7 @@ def decode_igraph_to_EQ(g):
         sympy.tanh: "tanh",
 
     }
-    with open('../data/operator_operand_dict.txt') as f:
+    with open('data/operator_operand_dict.txt') as f:
         operator_dict = eval(f.readline())
         inv_op = {v: k for k, v in operator_dict.items()}
         inv_sympy = {v: k for k, v in SYMPY_OPERATORS.items()}
@@ -696,25 +696,43 @@ def is_valid_ENAS(g, START_TYPE=0, END_TYPE=1):
     res = res and (g.vs[g.vcount()-1].indegree() == 1)
     return res
 
+
 def is_valid_EQ(g, START_TYPE=0, END_TYPE=1):
+    with open('data/operator_operand_dict.txt') as f:
+        operators = eval(f.readline())
+        num_operators = len(operators.keys())
+        in_vars = eval(f.readline())
+        var_count = len(in_vars)
+        var_types = list(range(2, 2 + var_count))
+        op_count = eval(f.readline())
+        binary_types = []
+        unary_types = []
+        for op in op_count.keys():
+            if op_count[op] == 2 and op in operators.keys():
+                binary_types.append(operators[op] + 2 + var_count)
+            elif op_count[op] == 1 and op in operators.keys():
+                unary_types.append(operators[op] + 2 + var_count)
+        # print(binary_types, unary_types)
+
     # first need to be a valid DAG computation graph
+
     res = is_valid_DAG(g, START_TYPE, END_TYPE)
     if not res:
         return res
     # in addition, node i must connect to node i+1
-    binary_vertex = g.vs.select(type_in=[4, 5]).indices
+    binary_vertex = g.vs.select(type_in=binary_types).indices
     binary_degree = g.degree(binary_vertex, mode='in')
     if binary_degree and not(max(binary_degree) == 2 and min(binary_degree) == 2):
         return False
-    unary_vertex = g.vs.select(type_in=[6, 7]).indices
+    unary_vertex = g.vs.select(type_in=unary_types).indices
     unary_degree = g.degree(unary_vertex, mode='in')
-    in_vertex = g.vs.select(type_in=[0]).indices[0]
-    in_neighb = g.neighbors(in_vertex, mode='out')
-    for vertex in in_neighb:
-        if g.vs[vertex]['type'] not in [2, 3]:
-            return False
     if unary_degree and not(max(unary_degree) == 1 and min(unary_degree) == 1):
         return False
+    in_vertex = g.vs.select(type_in=[START_TYPE]).indices[0]
+    in_neighb = g.neighbors(in_vertex, mode='out')
+    for vertex in in_neighb:
+        if g.vs[vertex]['type'] not in var_types:
+            return False
     return True
     
 
