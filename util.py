@@ -429,7 +429,7 @@ def decode_igraph_to_EQ(g):
         inv_sympy = {v: k for k, v in SYMPY_OPERATORS.items()}
     top_sort = g.topological_sorting()
     sym_list = [None] * g.vcount()
-    print('top sort', top_sort)
+    # print('top sort', top_sort)
     for idx in top_sort:
         if g.vs[idx]['type'] == 2:
             sym_list[idx] = sympy.Symbol('x_1')
