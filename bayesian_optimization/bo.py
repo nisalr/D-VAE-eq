@@ -74,7 +74,7 @@ parser.add_argument('--bidirectional', action='store_true', default=False,
 args = parser.parse_args()
 data_name = args.data_name
 save_appendix = args.save_appendix
-data_dir = '../results/{}_{}/'.format(data_name, save_appendix)  # data and model folder
+data_dir = 'results/{}_{}/'.format(data_name, save_appendix)  # data and model folder
 checkpoint = args.checkpoint
 res_dir = args.res_dir
 data_type = args.data_type
@@ -122,8 +122,8 @@ random_as_test = args.random_as_test
 # other BO hyperparameters
 lr = 0.0005  # the learning rate to train the SGP model
 max_iter = 100  # how many iterations to optimize the SGP each time
-num_points = 50
-train_points = 100
+num_points = 500
+train_points = 1000
 test_points = 100
 
 # architecture performance evaluator
@@ -143,7 +143,7 @@ data = loadmat(data_dir + '{}_latent_epoch{}.mat'.format(data_name, checkpoint))
 for rand_idx in range(1,11):
 
 
-    save_dir = '{}results_{}_{}/'.format(res_dir, save_appendix, rand_idx)  # where to save the BO results
+    save_dir = 'bayesian_optimization/{}results_{}_{}/'.format(res_dir, save_appendix, rand_idx)  # where to save the BO results
     if data_type == 'BN':
         eva = Eval_BN(save_dir)  # build the BN evaluator
 
@@ -151,13 +151,13 @@ for rand_idx in range(1,11):
         os.makedirs(save_dir) 
 
     # backup files
-    copy('bo.py', save_dir)
+    copy('bayesian_optimization/bo.py', save_dir)
     if args.predictor:
-        copy('run_pred_{}.sh'.format(data_type), save_dir)
+        copy('bayesian_optimization/run_pred_{}.sh'.format(data_type), save_dir)
     elif args.vis_2d:
-        copy('run_vis_{}.sh'.format(data_type), save_dir)
+        copy('bayesian_optimization/run_vis_{}.sh'.format(data_type), save_dir)
     else:
-        copy('run_bo_{}.sh'.format(data_type), save_dir)
+        copy('bayesian_optimization/run_bo_{}.sh'.format(data_type), save_dir)
 
     # set seed
     random_seed = rand_idx
@@ -543,4 +543,4 @@ for rand_idx in range(1,11):
         iteration += 1
         print(iteration)
 
-pdb.set_trace()
+#pdb.set_trace()
