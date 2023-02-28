@@ -19,7 +19,10 @@ class Eval_EQ(object):
         x2_vals = self.sr_dataset['x_2'].values
         y_vals = self.sr_dataset['y'].values
         pred_y_list = sym_func(x1_vals, x2_vals)
-        return -mean_squared_error(y_vals, pred_y_list)**0.5
+        try:
+            return -mean_squared_error(y_vals, pred_y_list)**0.5
+        except ValueError:
+            return -1e8
 
 if __name__ == '__main__':
     eva = Eval_EQ('../sr_evaluation/sr_dataset_0.csv')
