@@ -122,7 +122,8 @@ random_as_test = args.random_as_test
 # other BO hyperparameters
 lr = 0.0005  # the learning rate to train the SGP model
 max_iter = 100  # how many iterations to optimize the SGP each time
-num_points = 500
+decode_attempts = 500
+gp_points = 500
 train_points = 1000
 test_points = 100
 
@@ -202,7 +203,7 @@ for rand_idx in range(1,11):
         #random_inputs = torch.randn(1000, nz).cuda()
         random_inputs = np.random.randn(train_points, nz) * X_train.std(0) + X_train.mean(0)
         random_inputs = torch.FloatTensor(random_inputs).cuda()
-        valid_arcs_random = decode_from_latent_space(random_inputs, model, num_points, max_n, False, data_type)
+        valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts, max_n, False, data_type)
         print("Evaluating random points")
         random_scores = []
         max_random_score = -1e8
@@ -251,7 +252,7 @@ for rand_idx in range(1,11):
         #random_inputs = torch.randn(100, nz).cuda()
         random_inputs = np.random.randn(test_points, nz) * X_train.std(0) + X_train.mean(0)
         random_inputs = torch.FloatTensor(random_inputs).cuda()
-        valid_arcs_random = decode_from_latent_space(random_inputs, model, num_points, max_n, False, data_type)
+        valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts, max_n, False, data_type)
 
         print("Evaluating random points")
         random_scores = []
@@ -375,7 +376,7 @@ for rand_idx in range(1,11):
             uncert = np.zeros_like(pred)
         else:
             # We fit the GP
-            M = num_points
+            M = gp_points
             sgp = SparseGP(X_train, 0 * X_train, y_train, M)
             sgp.train_via_ADAM(X_train, 0 * X_train, y_train, X_test, X_test * 0,  \
                 y_test, minibatch_size = 2 * M, max_iterations = max_iter, learning_rate = lr)
@@ -463,7 +464,7 @@ for rand_idx in range(1,11):
         else:
             next_inputs = sgp.batched_greedy_ei(batch_size, np.min(X_train, 0), np.max(X_train, 0), np.mean(X_train, 0), np.std(X_train, 0), sample=sample_dist)
         valid_arcs_final = decode_from_latent_space(torch.FloatTensor(next_inputs).cuda(), model, 
-                                                    num_points, max_n, False, data_type)
+                                                    decode_attempt, max_n, False, data_type)
 
         if random_baseline:
             #random_inputs = torch.randn(batch_size, nz).cuda()
@@ -472,7 +473,7 @@ for rand_idx in range(1,11):
             elif args.sample_dist == 'normal':
                 random_inputs = np.random.randn(batch_size, nz) * X_train.std(0) + X_train.mean(0)
             random_inputs = torch.FloatTensor(random_inputs).cuda()
-            valid_arcs_random = decode_from_latent_space(random_inputs, model, num_points, max_n, False, data_type)
+            valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts, max_n, False, data_type)
 
         new_features = next_inputs
 
