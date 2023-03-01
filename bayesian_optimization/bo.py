@@ -464,7 +464,7 @@ for rand_idx in range(1,11):
         else:
             next_inputs = sgp.batched_greedy_ei(batch_size, np.min(X_train, 0), np.max(X_train, 0), np.mean(X_train, 0), np.std(X_train, 0), sample=sample_dist)
         valid_arcs_final = decode_from_latent_space(torch.FloatTensor(next_inputs).cuda(), model, 
-                                                    decode_attempt, max_n, False, data_type)
+                                                    decode_attempts, max_n, False, data_type)
 
         if random_baseline:
             #random_inputs = torch.randn(batch_size, nz).cuda()
