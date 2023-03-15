@@ -25,19 +25,19 @@
 #SBATCH --mail-user=nsranasinghe@student.unimelb.edu.au
 #SBATCH --mail-type=BEGIN,FAIL,END
 
-source /usr/local/module/spartan_new.sh
+source /usr/local/module/tan_new.sh
 module load anaconda3/2021.11
 eval "$(conda shell.bash hook)"
 conda activate dvae
 #Run program
-cd ../bayesian_optimization/
-python bo.py \
-  --data-name eq_structures \
-  --save-appendix DVAE_EQ \
-  --checkpoint 300 \
-  --res-dir="EQ_results/" \
+cd ..
+python bayesian_optimization/bo.py \
+  --data-name eq_structures_3 \
+  --save-appendix DVAE_EQ_120K_200epoch \
+  --checkpoint 200 \
+  --res-dir="EQ_results_12/" \
   --BO-rounds 10 \
-  --BO-batch-size 50 \
+  --BO-batch-size 200 \
   --random-as-test \
   --random-as-train \
-  --random-baseline
+  --random-baseline \
