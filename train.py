@@ -1,4 +1,5 @@
-from __future__ import print_function
+#print('import -1')
+#from __future__ import print_function
 import os
 import sys
 import math
@@ -617,6 +618,8 @@ def smoothness_exp(epoch, gap=0.05):
         if args.model.startswith('SVAE'):
             g0 = g0.to(device)
             g0 = model._collate_fn([g0])
+    elif args.data_type == 'EQ':
+        g0 = train_data[20][0]
     z0, _ = model.encode(g0)
 
     # select two orthogonal directions in latent space
@@ -689,8 +692,8 @@ if args.only_test:
     #interpolation_exp3(epoch)
     #prior_validity(True)
     #test()
-    #smoothness_exp(epoch, 0.1)
-    #smoothness_exp(epoch, 0.05)
+    smoothness_exp(epoch, 0.1)
+    smoothness_exp(epoch, 0.05)
     #interpolation_exp(epoch)
     pdb.set_trace()
 

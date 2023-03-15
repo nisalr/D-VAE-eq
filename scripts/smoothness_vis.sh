@@ -3,7 +3,7 @@
 #SBATCH --account="punim0512"
 
 # The name of the job:
-#SBATCH --job-name="dvae-eq"
+#SBATCH --job-name="dvae-bo-eq"
 
 # Partition for the job:
 #SBATCH --partition deeplearn
@@ -25,10 +25,20 @@
 #SBATCH --mail-user=nsranasinghe@student.unimelb.edu.au
 #SBATCH --mail-type=BEGIN,FAIL,END
 
-source /usr/local/module/spartan_new.sh
+source /usr/local/module/tan_new.sh
 module load anaconda3/2021.11
 eval "$(conda shell.bash hook)"
 conda activate dvae
 #Run program
 cd ..
-python train.py --data-name eq_structures_2 --data-type EQ --save-interval 100 --save-appendix _DVAE_EQ_20K_300epoch --epochs 300 --lr 1e-4 --model DVAE --bidirectional --nz 56 --batch-size 32
+python bayesian_optimization/bo.py \
+  --data-name eq_structures_3 \
+  --save-appendix DVAE_EQ_120K_200epoch \
+  --checkpoint 200 \
+  --res-dir="EQ_results_vis_4/" \
+  --BO-rounds 4 \
+  --BO-batch-size 200 \
+  --random-as-test \
+  --random-as-train \
+  --random-baseline \
+  --vis-2d \
