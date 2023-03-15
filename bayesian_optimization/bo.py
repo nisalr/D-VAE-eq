@@ -120,12 +120,13 @@ random_as_train = args.random_as_train
 random_as_test = args.random_as_test
 
 # other BO hyperparameters
-lr = 0.0005  # the learning rate to train the SGP model
+lr = 0.001  # the learning rate to train the SGP model
 max_iter = 100  # how many iterations to optimize the SGP each time
-decode_attempts = 500
-gp_points = 500
-train_points = 1000
+decode_attempts = 5
+gp_points = 50
+train_points = 100
 test_points = 100
+bo_seed_count = 10
 
 # architecture performance evaluator
 if data_type == 'ENAS':
@@ -134,14 +135,14 @@ if data_type == 'ENAS':
     eva = Eval_NN()  # build the network acc evaluater
                      # defined in ../software/enas/src/cifar10/evaluation.py
 elif data_type == 'EQ':
-    eva = Eval_EQ(sr_dataset_path='%s/../sr_evaluation/sr_dataset_0.csv' % os.path.dirname(os.path.realpath(__file__)))
+    eva = Eval_EQ(sr_dataset_path='%s/../sr_evaluation/sr_dataset_1.csv' % os.path.dirname(os.path.realpath(__file__)))
 
 data = loadmat(data_dir + '{}_latent_epoch{}.mat'.format(data_name, checkpoint))  # load train/test data
 #data = loadmat(data_dir + '{}_latent.mat'.format(data_name))  # load train/test data
 
 
 # do BO experiments with 10 random seeds
-for rand_idx in range(1,11):
+for rand_idx in range(1,bo_seed_count + 1):
 
 
     save_dir = 'bayesian_optimization/{}results_{}_{}/'.format(res_dir, save_appendix, rand_idx)  # where to save the BO results
@@ -156,7 +157,8 @@ for rand_idx in range(1,11):
     if args.predictor:
         copy('bayesian_optimization/run_pred_{}.sh'.format(data_type), save_dir)
     elif args.vis_2d:
-        copy('bayesian_optimization/run_vis_{}.sh'.format(data_type), save_dir)
+        pass
+        #copy('bayesian_optimization/run_vis_{}.sh'.format(data_type), save_dir)
     else:
         copy('bayesian_optimization/run_bo_{}.sh'.format(data_type), save_dir)
 
@@ -206,7 +208,7 @@ for rand_idx in range(1,11):
         valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts, max_n, False, data_type)
         print("Evaluating random points")
         random_scores = []
-        max_random_score = -1e8
+        max_random_score = -1e3
         for i in range(len(valid_arcs_random)):
             arc = valid_arcs_random[ i ]
             print(arc)
@@ -315,7 +317,7 @@ for rand_idx in range(1,11):
             grid_inputs = torch.FloatTensor(np.concatenate([x_range, y_range], 1)).cuda()
             if args.nz > 2:
                 grid_inputs = torch.cat([grid_inputs, z0[:, 2:].expand(grid_inputs.shape[0], -1)], 1)
-
+        print('grid input shape', grid_inputs.shape)
         valid_arcs_grid = []
         batch = 3000
         for i in range(0, grid_inputs.shape[0], batch):
@@ -335,13 +337,18 @@ for rand_idx in range(1,11):
             else:
                 score = 0
             #grid_scores.append(score)
-            print(i)
+            #print(i)
+        
         grid_inputs = grid_inputs.cpu().numpy()
         grid_y = np.array(grid_scores).reshape((n, n))
+        print(grid_y.min(), grid_y.max())
         save_object((grid_inputs, -grid_y), save_dir + 'grid_X_y.dat')
         save_object((x, y, grid_scores), save_dir + 'scatter_points.dat')
         if data_type == 'BN':
             vmin, vmax = -15000, -11000
+        elif data_type == 'EQ':
+           vmin = -20
+           vmax = 0
         else:
             vmin, vmax = 0.7, 0.76
         ticks = np.linspace(vmin, vmax, 9, dtype=int).tolist()
@@ -465,7 +472,6 @@ for rand_idx in range(1,11):
             next_inputs = sgp.batched_greedy_ei(batch_size, np.min(X_train, 0), np.max(X_train, 0), np.mean(X_train, 0), np.std(X_train, 0), sample=sample_dist)
         valid_arcs_final = decode_from_latent_space(torch.FloatTensor(next_inputs).cuda(), model, 
                                                     decode_attempts, max_n, False, data_type)
-
         if random_baseline:
             #random_inputs = torch.randn(batch_size, nz).cuda()
             if args.sample_dist == 'uniform':
@@ -476,7 +482,7 @@ for rand_idx in range(1,11):
             valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts, max_n, False, data_type)
 
         new_features = next_inputs
-
+        print('next input shape', next_inputs.shape)
         print("Evaluating selected points")
         scores = []
         for i in range(len(valid_arcs_final)):
