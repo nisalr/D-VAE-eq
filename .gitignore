@@ -2,5 +2,5 @@
 __pycache__/
 results/
 Theano-master
-*_results/
+*_results*/
 *.out
