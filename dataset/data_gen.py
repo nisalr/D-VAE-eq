@@ -39,6 +39,7 @@ from collections import Counter
 from dclasses import GeneratorDetails
 import igraph
 from util import is_valid_EQ, decode_igraph_to_EQ
+from tqdm import tqdm
 
 CLEAR_SYMPY_CACHE_FREQ = 10000
 
@@ -750,24 +751,24 @@ class Generator(object):
 if __name__=="__main__":
     params = {
         "max_len": 12,
-        "operators": "add:2,mul:2,exp:1,sin:1",
+        "operators": "add:2,mul:2,ln:1,sin:1,cos:1",
         "max_ops": 10,
         "rewrite_functions": "",
-        "variables": ["x_1","x_2"],
+        "variables": ["x_1", "x_2"],
         "eos_index": 1,
         "pad_index": 0
     }
-    dataset_file = '../data/eq_structures.txt'
+    dataset_file = 'data/eq_structures_3.txt'
     params = GeneratorDetails(**params)
     gen = Generator(params)
-    eq_count = 100
+    eq_count = 1000000
 
     test_dataset_count = 1
     v_count = []
     expr_list = []
-    op_dict = {'add': 0, 'mul': 1, 'sin': 2, 'exp': 3}
+    op_dict = {'add': 0, 'mul': 1, 'sin': 2, 'ln': 3, 'cos': 4}
     operand_list = params.variables
-    # for i in range(eq_count):
+    # for i in tqdm(range(eq_count)):
     #     try:
     #         expr, var = gen.generate_equation(rng=np.random)
     #         # print('expr', expr)
@@ -776,21 +777,23 @@ if __name__=="__main__":
     #     # print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
     #
     #     g, vertex_count = gen.decode_EQ_to_igraph(expr, operand_list, op_dict)
-    #     print(decode_igraph_to_EQ(g))
-    #     print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
+    #     # print(decode_igraph_to_EQ(g))
+    #     # print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
     #     valid_eq = is_valid_EQ(g)
     #     if not valid_eq:
     #         continue
     #     expr_list.append(expr)
     #     v_count.append(vertex_count)
     # print(max(v_count), len(v_count))
+    # print('total count', len(v_count), 'unique count', pd.Series([str(x) for x in expr_list]).nunique())
+    # expr_list = list(pd.Series([str(x) for x in expr_list]).unique())
     # with open(dataset_file, 'w') as f:
     #     f.write(str(op_dict))
     #     f.write('\n')
     #     f.write(str(operand_list))
     #     f.write('\n')
     #     for expr in expr_list:
-    #         f.write(str(expr))
+    #         f.write(expr)
     #         f.write('\n')
 
     for dataset_num in range(test_dataset_count):
@@ -811,8 +814,8 @@ if __name__=="__main__":
         print(infix_expr)
         sympy_expr = parse_expr(infix_expr)
         print(sympy_expr)
-        x1_vals = np.random.rand(10000)
-        x2_vals = np.random.rand(10000)
+        x1_vals = np.random.rand(10000)*4 + 1
+        x2_vals = np.random.rand(10000)*4 + 1
         y_vals = []
         for i in range(10000):
             cur_x1 = x1_vals[i]
@@ -821,7 +824,7 @@ if __name__=="__main__":
             y_vals.append(cur_y)
         df = pd.DataFrame({'x_1': x1_vals, 'x_2': x2_vals, 'y': y_vals})
         df['eq'] = infix_expr
-        # df.to_csv('sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), index=False)
+        df.to_csv('sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), index=False)
 
 
 
