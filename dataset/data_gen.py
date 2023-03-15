@@ -9,6 +9,7 @@ import os
 import io
 import re
 import sys
+sys.path.append(os.getcwd())
 import math
 import itertools
 from collections import OrderedDict
@@ -17,6 +18,7 @@ import numexpr as ne
 import pandas as pd
 import sympy as sp
 from sympy.parsing.sympy_parser import parse_expr
+from sympy import lambdify
 from sympy.core.cache import clear_cache
 from sympy.calculus.util import AccumBounds
 from sympy.core.rules import Transform
@@ -796,7 +798,7 @@ if __name__=="__main__":
     #         f.write(expr)
     #         f.write('\n')
 
-    for dataset_num in range(test_dataset_count):
+    for dataset_num in range(2,3):
         valid_expr = False
         while not valid_expr:
             try:
@@ -816,12 +818,10 @@ if __name__=="__main__":
         print(sympy_expr)
         x1_vals = np.random.rand(10000)*4 + 1
         x2_vals = np.random.rand(10000)*4 + 1
-        y_vals = []
-        for i in range(10000):
-            cur_x1 = x1_vals[i]
-            cur_x2 = x2_vals[i]
-            cur_y = sympy_expr.subs({'x_1': cur_x1, 'x_2': cur_x2})
-            y_vals.append(cur_y)
+
+        sym_func = lambdify(['x_1', 'x_2'], sympy_expr)
+        y_vals = sym_func(x1_vals, x2_vals)
+
         df = pd.DataFrame({'x_1': x1_vals, 'x_2': x2_vals, 'y': y_vals})
         df['eq'] = infix_expr
         df.to_csv('sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), index=False)
