@@ -2,7 +2,7 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-
+import ast
 from logging import getLogger
 from multiprocessing import Value
 import os
@@ -760,71 +760,78 @@ if __name__=="__main__":
         "eos_index": 1,
         "pad_index": 0
     }
-    dataset_file = 'data/eq_structures_3.txt'
+    dataset_file = 'data/eq_structures_5_w_vals.txt'
     params = GeneratorDetails(**params)
     gen = Generator(params)
-    eq_count = 1000000
+    eq_count = 10000
 
     test_dataset_count = 1
     v_count = []
     expr_list = []
     op_dict = {'add': 0, 'mul': 1, 'sin': 2, 'ln': 3, 'cos': 4}
     operand_list = params.variables
-    # for i in tqdm(range(eq_count)):
-    #     try:
-    #         expr, var = gen.generate_equation(rng=np.random)
-    #         # print('expr', expr)
-    #     except ValueErrorExpression:
-    #         continue
-    #     # print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
+    for i in tqdm(range(eq_count)):
+        try:
+            expr, var = gen.generate_equation(rng=np.random)
+            # print('expr', expr)
+        except ValueErrorExpression:
+            continue
+        # print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
+
+        g, vertex_count = gen.decode_EQ_to_igraph(expr, operand_list, op_dict)
+        # print(decode_igraph_to_EQ(g))
+        # print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
+        valid_eq = is_valid_EQ(g)
+        if not valid_eq:
+            continue
+        expr_list.append(expr)
+        v_count.append(vertex_count)
+    print(max(v_count), len(v_count))
+    print('total count', len(v_count), 'unique count', pd.Series([str(x) for x in expr_list]).nunique())
+    expr_list = list(pd.Series([str(x) for x in expr_list]).unique())
+
+    with open(dataset_file, 'w') as f:
+        f.write(str(op_dict))
+        f.write('\n')
+        f.write(str(operand_list))
+        f.write('\n')
+        for expr in expr_list:
+            infix_expr = gen.prefix_to_infix(ast.literal_eval(expr), coefficients=gen.coefficients, variables=var)
+            sympy_expr = parse_expr(infix_expr)
+            x1_vals = np.array([1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0])
+            x2_vals = np.array([1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0])
+            sym_func = lambdify(['x_1', 'x_2'], sympy_expr)
+            y_vals = np.nan_to_num(sym_func(x1_vals, x2_vals))
+            f.write(expr + ',' + str(list(y_vals)))
+            f.write('\n')
+
+    # for dataset_num in range(2,3):
+    #     valid_expr = False
+    #     while not valid_expr:
+    #         try:
+    #             expr, var = gen.generate_equation(rng=np.random)
+    #             g, vertex_count = gen.decode_EQ_to_igraph(expr, operand_list, op_dict)
+    #             valid_eq = is_valid_EQ(g)
+    #             if not valid_eq:
+    #                 continue
+    #             valid_expr = True
+    #             # print('expr', expr)
+    #         except ValueErrorExpression:
+    #             continue
+    #     print(g)
+    #     infix_expr = gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var)
+    #     print(infix_expr)
+    #     sympy_expr = parse_expr(infix_expr)
+    #     print(sympy_expr)
+    #     x1_vals = np.random.rand(10000)*4 + 1
+    #     x2_vals = np.random.rand(10000)*4 + 1
     #
-    #     g, vertex_count = gen.decode_EQ_to_igraph(expr, operand_list, op_dict)
-    #     # print(decode_igraph_to_EQ(g))
-    #     # print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
-    #     valid_eq = is_valid_EQ(g)
-    #     if not valid_eq:
-    #         continue
-    #     expr_list.append(expr)
-    #     v_count.append(vertex_count)
-    # print(max(v_count), len(v_count))
-    # print('total count', len(v_count), 'unique count', pd.Series([str(x) for x in expr_list]).nunique())
-    # expr_list = list(pd.Series([str(x) for x in expr_list]).unique())
-    # with open(dataset_file, 'w') as f:
-    #     f.write(str(op_dict))
-    #     f.write('\n')
-    #     f.write(str(operand_list))
-    #     f.write('\n')
-    #     for expr in expr_list:
-    #         f.write(expr)
-    #         f.write('\n')
-
-    for dataset_num in range(2,3):
-        valid_expr = False
-        while not valid_expr:
-            try:
-                expr, var = gen.generate_equation(rng=np.random)
-                g, vertex_count = gen.decode_EQ_to_igraph(expr, operand_list, op_dict)
-                valid_eq = is_valid_EQ(g)
-                if not valid_eq:
-                    continue
-                valid_expr = True
-                # print('expr', expr)
-            except ValueErrorExpression:
-                continue
-        print(g)
-        infix_expr = gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var)
-        print(infix_expr)
-        sympy_expr = parse_expr(infix_expr)
-        print(sympy_expr)
-        x1_vals = np.random.rand(10000)*4 + 1
-        x2_vals = np.random.rand(10000)*4 + 1
-
-        sym_func = lambdify(['x_1', 'x_2'], sympy_expr)
-        y_vals = sym_func(x1_vals, x2_vals)
-
-        df = pd.DataFrame({'x_1': x1_vals, 'x_2': x2_vals, 'y': y_vals})
-        df['eq'] = infix_expr
-        df.to_csv('sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), index=False)
+    #     sym_func = lambdify(['x_1', 'x_2'], sympy_expr)
+    #     y_vals = sym_func(x1_vals, x2_vals)
+    #
+    #     df = pd.DataFrame({'x_1': x1_vals, 'x_2': x2_vals, 'y': y_vals})
+    #     df['eq'] = infix_expr
+    #     df.to_csv('sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), index=False)
 
 
 

@@ -182,7 +182,7 @@ def decode_EQ_to_igraph(prefix, operand_list, operator_dict):
     return g, vertex_count
 
 
-def load_EQ_graphs(name, rand_seed=0):
+def load_EQ_graphs(name, rand_seed=0, cond=False):
     g_list = []
     max_n = 0
     with open('data/%s.txt' % name, 'r') as f:
@@ -192,10 +192,16 @@ def load_EQ_graphs(name, rand_seed=0):
             if row is None:
                 break
             row = eval(row)
+            if cond:
+                y_cond = row[1]
+                row = row[0]
             y = 0.0
             g, n = decode_EQ_to_igraph(row, operand_list, operator_dict)
             max_n = max(max_n, n)
-            g_list.append((g, y))
+            if cond:
+                g_list.append((g, y, y_cond))
+            else:
+                g_list.append((g, y))
     graph_args.num_vertex_type = len(operand_list) + len(operator_dict.keys()) + 2
     graph_args.max_n = max_n  # maximum number of nodes
     graph_args.START_TYPE = 0  # predefined start vertex type

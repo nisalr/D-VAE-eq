@@ -80,6 +80,8 @@ parser.add_argument('--all-gpus', action='store_true', default=False,
                     help='use all available GPUs')
 parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
+parser.add_argument('--cond', action='store_true', default=False,
+                    help='condition DVAE on dataset')
 
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -92,7 +94,7 @@ else:
 np.random.seed(args.seed)
 random.seed(args.seed)
 print(args)
-
+is_cond = args.cond
 
 '''Prepare data'''
 args.file_dir = os.path.dirname(os.path.realpath('__file__'))
@@ -121,7 +123,7 @@ else:
         train_data, test_data, graph_args = load_BN_graphs(args.data_name, n_types=args.nvt,
                                                            fmt=input_fmt)
     elif args.data_type == 'EQ':
-        train_data, test_data, graph_args = load_EQ_graphs(args.data_name)
+        train_data, test_data, graph_args = load_EQ_graphs(args.data_name, cond=is_cond)
     with open(pkl_name, 'wb') as f:
         pickle.dump((train_data, test_data, graph_args), f)
 
@@ -198,7 +200,10 @@ else:
 if not os.path.exists(os.path.join(args.res_dir, 'train_graph_id0.pdf')) or args.reprocess:
     if not args.keep_old:
         for data in ['train_data', 'test_data']:
-            G = [g for g, y in eval(data)[:10]]
+            if is_cond:
+                G = [g for g, y, y_cond in eval(data)[:10]]
+            else:
+                G = [g for g, y in eval(data)[:10]]
             if args.model.startswith('SVAE'):
                 G = [g.to(device) for g in G]
                 G = model._collate_fn(G)
@@ -219,11 +224,18 @@ def train(epoch):
     pbar = tqdm(train_data)
     g_batch = []
     y_batch = []
-    for i, (g, y) in enumerate(pbar):
+    y_cond_batch = []
+    for i, sample in enumerate(pbar):
+        if is_cond:
+            g, y, y_cond = sample
+        else:
+            g, y = sample
+            y_cond = None
         if args.model.startswith('SVAE'):  # for SVAE, g is tensor
             g = g.to(device)
         g_batch.append(g)
         y_batch.append(y)
+        y_cond_batch.append(y_cond)
         if len(g_batch) == args.batch_size or i == len(train_data) - 1:
             optimizer.zero_grad()
             g_batch = model._collate_fn(g_batch)
@@ -232,8 +244,13 @@ def train(epoch):
                 pbar.set_description('Epoch: %d, loss: %0.4f' % (epoch, loss.item()/len(g_batch)))
                 recon, kld = 0, 0
             else:
-                mu, logvar = model.encode(g_batch)
-                loss, recon, kld = model.loss(mu, logvar, g_batch)
+                if is_cond:
+                    y_cond_batch = torch.cuda.FloatTensor(y_cond_batch)
+                    mu, logvar = model.encode(g_batch, y=y_cond_batch)
+                    loss, recon, kld = model.loss(mu, logvar, g_batch, y=y_cond_batch)
+                else:
+                    mu, logvar = model.encode(g_batch)
+                    loss, recon, kld = model.loss(mu, logvar, g_batch)
                 if args.predictor:
                     y_batch = torch.FloatTensor(y_batch).unsqueeze(1).to(device)
                     y_pred = model.predictor(mu)
@@ -256,6 +273,7 @@ def train(epoch):
             optimizer.step()
             g_batch = []
             y_batch = []
+            y_cond_batch = []
 
     print('====> Epoch: {} Average loss: {:.4f}'.format(
           epoch, train_loss / len(train_data)))
@@ -294,15 +312,26 @@ def test():
     pbar = tqdm(test_data)
     g_batch = []
     y_batch = []
-    for i, (g, y) in enumerate(pbar):
+    y_cond_batch = []
+    for i, sample in enumerate(pbar):
+        if is_cond:
+            g, y, y_cond = sample
+        else:
+            g, y = sample
         if args.model.startswith('SVAE'):
             g = g.to(device)
         g_batch.append(g)
         y_batch.append(y)
+        y_cond_batch.append(y_cond)
         if len(g_batch) == args.infer_batch_size or i == len(test_data) - 1:
             g = model._collate_fn(g_batch)
-            mu, logvar = model.encode(g)
-            _, nll, _ = model.loss(mu, logvar, g)
+            if is_cond:
+                y_cond_batch = torch.cuda.FloatTensor(y_cond_batch)
+                mu, logvar = model.encode(g, y=y_cond_batch)
+                _, nll, _ = model.loss(mu, logvar, g, y=y_cond_batch)
+            else:
+                mu, logvar = model.encode(g)
+                _, nll, _ = model.loss(mu, logvar, g)
             pbar.set_description('nll: {:.4f}'.format(nll.item()/len(g_batch)))
             Nll += nll.item()
             if args.predictor:
@@ -316,10 +345,11 @@ def test():
             for _ in range(encode_times):
                 z = model.reparameterize(mu, logvar)
                 for _ in range(decode_times):
-                    g_recon = model.decode(z)
+                    g_recon = model.decode(z, y=y_cond_batch)
                     n_perfect += sum(is_same_DAG(g0, g1) for g0, g1 in zip(g, g_recon))
             g_batch = []
             y_batch = []
+            y_cond_batch = []
     Nll /= len(test_data)
     pred_loss /= len(test_data)
     pred_rmse = math.sqrt(pred_loss)
@@ -344,7 +374,11 @@ def prior_validity(scale_to_train_range=False):
     print('Prior validity experiment begins...')
     G = []
     G_valid = []
-    G_train = [g for g, y in train_data]
+    if is_cond:
+        G_train = [g for g, y, y_cond in train_data]
+        y_cond_all = np.array([y_cond for g, y, y_cond in test_data])
+    else:
+        G_train = [g for g, y in train_data]
     if args.model.startswith('SVAE'):
         G_train = [g.to(device) for g in G_train]
         G_train = model._collate_fn(G_train)
@@ -355,10 +389,16 @@ def prior_validity(scale_to_train_range=False):
         cnt += 1
         if cnt == args.infer_batch_size or i == n_latent_points - 1:
             z = torch.randn(cnt, model.nz).to(model.get_device())
+            if is_cond:
+                y_cond_batch = y_cond_all[np.random.randint(y_cond_all.shape[0], size=cnt), :]
+                y_cond_batch = torch.cuda.FloatTensor(y_cond_batch)
             if scale_to_train_range:
                 z = z * z_std + z_mean  # move to train's latent range
             for j in range(decode_times):
-                g_batch = model.decode(z)
+                if is_cond:
+                    g_batch = model.decode(z, y=y_cond_batch)
+                else:
+                    g_batch = model.decode(z)
                 G.extend(g_batch)
                 if args.data_type == 'ENAS':
                     for g in g_batch:
@@ -393,7 +433,12 @@ def extract_latent(data):
     Z = []
     Y = []
     g_batch = []
-    for i, (g, y) in enumerate(tqdm(data)):
+    y_cond_batch = []
+    for i, sample in enumerate(tqdm(data)):
+        if is_cond:
+            g, y, y_cond = sample
+        else:
+            g, y = sample
         if args.model.startswith('SVAE'):
             g_ = g.to(device)
         elif args.model.startswith('DVAE'):
@@ -401,9 +446,14 @@ def extract_latent(data):
             # otherwise original igraphs will save the H states and consume more GPU memory
             g_ = g.copy()  
         g_batch.append(g_)
+        y_cond_batch.append(y_cond)
         if len(g_batch) == args.infer_batch_size or i == len(data) - 1:
             g_batch = model._collate_fn(g_batch)
-            mu, _ = model.encode(g_batch)
+            if is_cond:
+                y_cond_batch = torch.cuda.FloatTensor(y_cond_batch)
+                mu, _ = model.encode(g_batch, y=y_cond_batch)
+            else:
+                mu, _ = model.encode(g_batch)
             mu = mu.cpu().detach().numpy()
             Z.append(mu)
             g_batch = []
@@ -723,7 +773,7 @@ for epoch in range(start_epoch + 1, args.epochs + 1):
         print("visualize reconstruction examples...")
         visualize_recon(epoch)
         print("extract latent representations...")
-        save_latent_representations(epoch)
+        # save_latent_representations(epoch)
         print("sample from prior...")
         sampled = model.generate_sample(args.sample_number)
         for i, g in enumerate(sampled):

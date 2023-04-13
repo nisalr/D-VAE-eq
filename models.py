@@ -534,7 +534,7 @@ class SVAE_GraphRNN_BFS(SVAE):
     DAG Variational Autoencoder (D-VAE).
 '''
 class DVAE(nn.Module):
-    def __init__(self, max_n, nvt, START_TYPE, END_TYPE, hs=501, nz=56, bidirectional=False, vid=True):
+    def __init__(self, max_n, nvt, START_TYPE, END_TYPE, hs=501, nz=56, bidirectional=False, vid=True, cs=9):
         super(DVAE, self).__init__()
         self.max_n = max_n  # maximum number of vertices
         self.nvt = nvt  # number of vertex types
@@ -546,6 +546,7 @@ class DVAE(nn.Module):
         self.bidir = bidirectional  # whether to use bidirectional encoding
         self.vid = vid
         self.device = None
+        self.cs = cs # size of the condition vector
 
         if self.vid:
             self.vs = hs + max_n  # vertex state size = hidden state + vid
@@ -555,12 +556,12 @@ class DVAE(nn.Module):
         # 0. encoding-related
         self.grue_forward = nn.GRUCell(nvt, hs)  # encoder GRU
         self.grue_backward = nn.GRUCell(nvt, hs)  # backward encoder GRU
-        self.fc1 = nn.Linear(self.gs, nz)  # latent mean
-        self.fc2 = nn.Linear(self.gs, nz)  # latent logvar
+        self.fc1 = nn.Linear(self.gs + self.cs, nz)  # latent mean
+        self.fc2 = nn.Linear(self.gs + self.cs, nz)  # latent logvar
             
         # 1. decoding-related
         self.grud = nn.GRUCell(nvt, hs)  # decoder GRU
-        self.fc3 = nn.Linear(nz, hs)  # from latent z to initial hidden state h0
+        self.fc3 = nn.Linear(nz + self.cs, hs)  # from latent z to initial hidden state h0
         self.add_vertex = nn.Sequential(
                 nn.Linear(hs, hs * 2),
                 nn.ReLU(),
@@ -717,7 +718,7 @@ class DVAE(nn.Module):
             Hg = self.hg_unify(Hg)
         return Hg
 
-    def encode(self, G):
+    def encode(self, G, y=None):
         # encode graphs G into latent vectors
         if type(G) != list:
             G = [G]
@@ -727,7 +728,10 @@ class DVAE(nn.Module):
             self._propagate_from(G, self.max_n-1, self.grue_backward, 
                                  H0=self._get_zero_hidden(len(G)), reverse=True)
         Hg = self._get_graph_state(G)
-        mu, logvar = self.fc1(Hg), self.fc2(Hg) 
+        if y is None:
+            mu, logvar = self.fc1(Hg), self.fc2(Hg)
+        else:
+            mu, logvar = self.fc1(torch.cat((Hg, y), dim=1)), self.fc2(torch.cat((Hg, y), dim=1))
         return mu, logvar
 
     def reparameterize(self, mu, logvar, eps_scale=0.01):
@@ -744,11 +748,15 @@ class DVAE(nn.Module):
         # in most cases, H0 need not be explicitly included since Hvi and H contain its information
         return self.sigmoid(self.add_edge(torch.cat([Hvi, H], -1)))
 
-    def decode(self, z, stochastic=True):
+    def decode(self, z, stochastic=True, y=None):
         # decode latent vectors z back to graphs
         # if stochastic=True, stochastically sample each action from the predicted distribution;
         # otherwise, select argmax action deterministically.
-        H0 = self.tanh(self.fc3(z))  # or relu activation, similar performance
+        if y is None:
+            H0 = self.tanh(self.fc3(z))  # or relu activation, similar performance
+        else:
+            H0 = self.tanh(self.fc3(torch.cat((z, y), dim=1)))
+
         G = [igraph.Graph(directed=True) for _ in range(len(z))]
         for g in G:
             g.add_vertex(type=self.START_TYPE)
@@ -803,11 +811,14 @@ class DVAE(nn.Module):
             del g.vs['H_forward']  # delete hidden states to save GPU memory
         return G
 
-    def loss(self, mu, logvar, G_true, beta=0.005):
+    def loss(self, mu, logvar, G_true, beta=0.005, y=None):
         # compute the loss of decoding mu and logvar to true graphs using teacher forcing
         # ensure when computing the loss of step i, steps 0 to i-1 are correct
         z = self.reparameterize(mu, logvar)
-        H0 = self.tanh(self.fc3(z))  # or relu activation, similar performance
+        if y is None:
+            H0 = self.tanh(self.fc3(z))  # or relu activation, similar performance
+        else:
+            H0 = self.tanh(self.fc3(torch.cat((z, y), dim=1)))
         G = [igraph.Graph(directed=True) for _ in range(len(z))]
         for g in G:
             g.add_vertex(type=self.START_TYPE)
@@ -869,9 +880,9 @@ class DVAE(nn.Module):
         loss, _, _ = self.loss(mu, logvar, G)
         return loss
     
-    def generate_sample(self, n):
+    def generate_sample(self, n, y=None):
         sample = torch.randn(n, self.nz).to(self.get_device())
-        G = self.decode(sample)
+        G = self.decode(sample, y)
         return G
 
 
