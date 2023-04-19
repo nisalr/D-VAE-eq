@@ -193,7 +193,7 @@ def load_EQ_graphs(name, rand_seed=0, cond=False):
                 break
             row = eval(row)
             if cond:
-                y_cond = row[1]
+                y_cond = list(np.clip(row[1], a_min=-1e6, a_max=1e6))
                 row = row[0]
             y = 0.0
             g, n = decode_EQ_to_igraph(row, operand_list, operator_dict)
@@ -210,7 +210,21 @@ def load_EQ_graphs(name, rand_seed=0, cond=False):
     print('# node types: %d' % graph_args.num_vertex_type)
     print('maximum # nodes: %d' % graph_args.max_n)
     random.Random(rand_seed).shuffle(g_list)
-    return g_list[:int(ng * 0.9)], g_list[int(ng * 0.9):], graph_args
+    g_train = g_list[:int(ng * 0.9)]
+    g_test = g_list[int(ng * 0.9):]
+    if cond:
+        y_cond_train = np.array([g[2] for g in g_train])
+        y_cond_test = np.array([g[2] for g in g_train])
+        y_cond_mean = np.mean(y_cond_train, axis=0)
+        y_cond_std = np.std(y_cond_train, axis=0)
+        y_cond_train = list((y_cond_train - y_cond_mean)/y_cond_std)
+        y_cond_test = list((y_cond_test - y_cond_mean)/y_cond_std)
+        for i in range(len(g_train)):
+            g_train[i] = (g_train[i][0], g_train[i][1], y_cond_train[i])
+        for i in range(len(g_test)):
+            g_test[i] = (g_test[i][0], g_test[i][1], y_cond_test[i])
+
+    return g_train, g_test, graph_args
 
 
 def one_hot(idx, length):
