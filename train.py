@@ -286,7 +286,11 @@ def train(epoch):
 def visualize_recon(epoch):
     model.eval()
     # draw some reconstructed train/test graphs to visualize recon quality
-    for i, (g, y) in enumerate(test_data[:10]+train_data[:10]):
+    for i, sample in enumerate(test_data[:10]+train_data[:10]):
+        if is_cond:
+            g, y, y_cond = sample
+        else:
+            g, y = sample
         if args.model.startswith('SVAE'):
             g = g.to(device)
             g = model._collate_fn(g)
@@ -771,14 +775,14 @@ for epoch in range(start_epoch + 1, args.epochs + 1):
         torch.save(optimizer.state_dict(), optimizer_name)
         torch.save(scheduler.state_dict(), scheduler_name)
         print("visualize reconstruction examples...")
-        visualize_recon(epoch)
+        # visualize_recon(epoch)
         print("extract latent representations...")
         # save_latent_representations(epoch)
         print("sample from prior...")
-        sampled = model.generate_sample(args.sample_number)
-        for i, g in enumerate(sampled):
-            namei = 'graph_{}_sample{}'.format(epoch, i)
-            plot_DAG(g, args.res_dir, namei, data_type=args.data_type)
+        # sampled = model.generate_sample(args.sample_number)
+        # for i, g in enumerate(sampled):
+        #     namei = 'graph_{}_sample{}'.format(epoch, i)
+        #     plot_DAG(g, args.res_dir, namei, data_type=args.data_type)
         print("plot train loss...")
         losses = np.loadtxt(loss_name)
         if losses.ndim == 1:

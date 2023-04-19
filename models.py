@@ -881,7 +881,10 @@ class DVAE(nn.Module):
         return loss
     
     def generate_sample(self, n, y=None):
-        sample = torch.randn(n, self.nz).to(self.get_device())
+        if y is None:
+            sample = torch.randn(n, self.nz).to(self.get_device())
+        else:
+            sample = torch.randn(n, self.nz + self.cs).to(self.get_device())
         G = self.decode(sample, y)
         return G
 
