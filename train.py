@@ -454,8 +454,7 @@ def extract_latent(data):
         if len(g_batch) == args.infer_batch_size or i == len(data) - 1:
             g_batch = model._collate_fn(g_batch)
             if is_cond:
-                y_cond_batch = torch.cuda.FloatTensor(y_cond_batch)
-                mu, _ = model.encode(g_batch, y=y_cond_batch)
+                mu, _ = model.encode(g_batch, y=torch.cuda.FloatTensor(y_cond_batch))
             else:
                 mu, _ = model.encode(g_batch)
             mu = mu.cpu().detach().numpy()
