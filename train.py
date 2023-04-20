@@ -460,6 +460,7 @@ def extract_latent(data):
             mu = mu.cpu().detach().numpy()
             Z.append(mu)
             g_batch = []
+            y_cond_batch = []
         Y.append(y)
     return np.concatenate(Z, 0), np.array(Y)
 
