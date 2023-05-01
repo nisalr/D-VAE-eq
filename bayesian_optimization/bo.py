@@ -57,7 +57,8 @@ parser.add_argument('--random-as-test', action='store_true', default=False,
                     as the additional testing data')
 parser.add_argument('--vis-2d', action='store_true', default=False,
                     help='do visualization experiments on 2D space')
-
+parser.add_argument('--dnum', type=int, default=0,
+                    help='number of SR dataset to evaluate')
 
 # can be inferred from the cmd_input.txt file, no need to specify
 parser.add_argument('--data-type', default='ENAS',
@@ -82,6 +83,7 @@ model_name = args.model
 hs, nz = args.hs, args.nz
 bidir = args.bidirectional
 vis_2d = args.vis_2d
+dataset_num = args.dnum
 
 '''Load hyperparameters'''
 with open(data_dir + 'cmd_input.txt', 'r') as f:
@@ -120,13 +122,13 @@ random_as_train = args.random_as_train
 random_as_test = args.random_as_test
 
 # other BO hyperparameters
-lr = 0.001  # the learning rate to train the SGP model
+lr = 0.0001  # the learning rate to train the SGP model
 max_iter = 100  # how many iterations to optimize the SGP each time
 decode_attempts = 5
 gp_points = 50
-train_points = 100
-test_points = 100
-bo_seed_count = 10
+train_points = 200
+test_points = 25
+bo_seed_count = 15
 
 # architecture performance evaluator
 if data_type == 'ENAS':
@@ -135,7 +137,8 @@ if data_type == 'ENAS':
     eva = Eval_NN()  # build the network acc evaluater
                      # defined in ../software/enas/src/cifar10/evaluation.py
 elif data_type == 'EQ':
-    eva = Eval_EQ(sr_dataset_path='%s/../sr_evaluation/sr_dataset_1.csv' % os.path.dirname(os.path.realpath(__file__)))
+    eva = Eval_EQ(sr_dataset_path='sr_evaluation/sr_dataset_{}.csv'.format(dataset_num))
+    print('SR evaluation on dataset {}'.format(dataset_num))
 
 data = loadmat(data_dir + '{}_latent_epoch{}.mat'.format(data_name, checkpoint))  # load train/test data
 #data = loadmat(data_dir + '{}_latent.mat'.format(data_name))  # load train/test data
@@ -347,8 +350,8 @@ for rand_idx in range(1,bo_seed_count + 1):
         if data_type == 'BN':
             vmin, vmax = -15000, -11000
         elif data_type == 'EQ':
-           vmin = -20
-           vmax = 0
+           vmin = 0
+           vmax = 1
         else:
             vmin, vmax = 0.7, 0.76
         ticks = np.linspace(vmin, vmax, 9, dtype=int).tolist()
@@ -373,6 +376,8 @@ for rand_idx in range(1,bo_seed_count + 1):
         os.remove(save_dir + 'Test_RMSE_ll.txt')
     if os.path.exists(save_dir + 'best_arc_scores.txt'):
         os.remove(save_dir + 'best_arc_scores.txt')
+    if os.path.exists(save_dir + 'best_random_scores.txt'):
+        os.remove(save_dir + 'best_random_scores.txt')
 
     while iteration < BO_rounds:
 
@@ -546,7 +551,9 @@ for rand_idx in range(1,bo_seed_count + 1):
                 row = adjstr_to_BN(best_arc)
                 g_best, _ = decode_BN_to_igraph(row)
             # plot_DAG(g_best, save_dir, 'best_arc_iter_{}'.format(iteration), data_type=data_type, pdf=True)
-
+        if best_random_arc is not None:
+            with open(save_dir + 'best_random_scores.txt', 'a') as random_score_file:
+                random_score_file.write(best_random_arc + ', {:.4f}\n'.format(-best_random_score * std_y_train - mean_y_train))
         iteration += 1
         print(iteration)
 
