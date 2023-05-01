@@ -487,7 +487,7 @@ def adjstr_to_BN(row):
 
 def decode_from_latent_space(
         latent_points, model, decode_attempts=500, n_nodes='variable', return_igraph=False, 
-        data_type='ENAS'):
+        data_type='ENAS', y_cond=None):
     # decode points from the VAE model's latent space multiple attempts
     # and return the most common decoded graphs
     if n_nodes != 'variable':
@@ -497,7 +497,10 @@ def decode_from_latent_space(
     decoded_arcs = []  # a list of lists of igraphs
     pbar = tqdm(range(decode_attempts))
     for i in pbar:
-        current_decoded_arcs = model.decode(latent_points)
+        if y_cond:
+            current_decoded_arcs = model.decode(latent_points, y=y_cond)
+        else:
+            current_decoded_arcs = model.decode(latent_points)
         decoded_arcs.append(current_decoded_arcs)
         pbar.set_description("Decoding attempts {}/{}".format(i, decode_attempts))
 
