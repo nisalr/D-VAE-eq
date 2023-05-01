@@ -71,6 +71,8 @@ parser.add_argument('--nz', type=int, default=56, metavar='N',
                     help='number of dimensions of latent vectors z')
 parser.add_argument('--bidirectional', action='store_true', default=False,
                     help='whether to use bidirectional encoding')
+parser.add_argument('--cond', action='store_true', default=False,
+                    help='condition DVAE on dataset')
 
 args = parser.parse_args()
 data_name = args.data_name
@@ -84,6 +86,7 @@ hs, nz = args.hs, args.nz
 bidir = args.bidirectional
 vis_2d = args.vis_2d
 dataset_num = args.dnum
+is_cond = args.cond
 
 '''Load hyperparameters'''
 with open(data_dir + 'cmd_input.txt', 'r') as f:
@@ -208,7 +211,11 @@ for rand_idx in range(1,bo_seed_count + 1):
         #random_inputs = torch.randn(1000, nz).cuda()
         random_inputs = np.random.randn(train_points, nz) * X_train.std(0) + X_train.mean(0)
         random_inputs = torch.FloatTensor(random_inputs).cuda()
-        valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts, max_n, False, data_type)
+        if is_cond:
+            valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts, max_n, False, data_type,
+                                                         y_cond=eva.get_dcond())
+        else:
+            valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts, max_n, False, data_type)
         print("Evaluating random points")
         random_scores = []
         max_random_score = -1e3
@@ -257,7 +264,11 @@ for rand_idx in range(1,bo_seed_count + 1):
         #random_inputs = torch.randn(100, nz).cuda()
         random_inputs = np.random.randn(test_points, nz) * X_train.std(0) + X_train.mean(0)
         random_inputs = torch.FloatTensor(random_inputs).cuda()
-        valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts, max_n, False, data_type)
+        if is_cond:
+            valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts, max_n, False, data_type,
+                                                         y_cond=eva.get_dcond())
+        else:
+            valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts, max_n, False, data_type)
 
         print("Evaluating random points")
         random_scores = []
@@ -475,8 +486,13 @@ for rand_idx in range(1,bo_seed_count + 1):
 
         else:
             next_inputs = sgp.batched_greedy_ei(batch_size, np.min(X_train, 0), np.max(X_train, 0), np.mean(X_train, 0), np.std(X_train, 0), sample=sample_dist)
-        valid_arcs_final = decode_from_latent_space(torch.FloatTensor(next_inputs).cuda(), model, 
-                                                    decode_attempts, max_n, False, data_type)
+
+        if is_cond:
+            valid_arcs_final = decode_from_latent_space(torch.FloatTensor(next_inputs).cuda(), model,
+                                                        decode_attempts, max_n, False, data_type, y_cond=eva.get_dcond())
+        else:
+            valid_arcs_final = decode_from_latent_space(torch.FloatTensor(next_inputs).cuda(), model,
+                                                        decode_attempts, max_n, False, data_type)
         if random_baseline:
             #random_inputs = torch.randn(batch_size, nz).cuda()
             if args.sample_dist == 'uniform':
@@ -484,7 +500,12 @@ for rand_idx in range(1,bo_seed_count + 1):
             elif args.sample_dist == 'normal':
                 random_inputs = np.random.randn(batch_size, nz) * X_train.std(0) + X_train.mean(0)
             random_inputs = torch.FloatTensor(random_inputs).cuda()
-            valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts, max_n, False, data_type)
+            if is_cond:
+                valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts,
+                                                             max_n, False, data_type, y_cond=eva.get_dcond())
+            else:
+                valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts,
+                                                             max_n, False, data_type)
 
         new_features = next_inputs
         print('next input shape', next_inputs.shape)
