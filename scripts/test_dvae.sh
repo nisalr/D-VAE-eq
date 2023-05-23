@@ -34,4 +34,4 @@ conda activate dvae_2
 #Run program
 cd ..
 echo 'running program'
-python train.py --data-name eq_structures_7_w_vals --data-type EQ --save-interval 25 --save-appendix _DVAE_EQ_83K_w_vals_200epoch --epochs 300 --lr 1e-4 --model DVAE --bidirectional --nz 56 --batch-size 32 --nvt 5 --cond
+python train.py --data-name eq_structures_7_w_vals --data-type EQ --save-interval 25 --save-appendix _DVAE_EQ_83K_w_vals_200epoch --epochs 300 --lr 1e-4 --model DVAE --bidirectional --nz 56 --batch-size 32 --nvt 5 --cond --only-test --continue-from 300
