@@ -740,14 +740,14 @@ if os.path.exists(loss_name) and not args.keep_old:
 if args.only_test:
     epoch = args.continue_from
     #sampled = model.generate_sample(args.sample_number)
-    #save_latent_representations(epoch)
-    visualize_recon(300)
+    save_latent_representations(epoch)
+    #visualize_recon(300)
     #interpolation_exp2(epoch)
     #interpolation_exp3(epoch)
     #prior_validity(True)
     #test()
-    smoothness_exp(epoch, 0.1)
-    smoothness_exp(epoch, 0.05)
+    #smoothness_exp(epoch, 0.1)
+    #smoothness_exp(epoch, 0.05)
     #interpolation_exp(epoch)
     pdb.set_trace()
 
@@ -777,7 +777,7 @@ for epoch in range(start_epoch + 1, args.epochs + 1):
         print("visualize reconstruction examples...")
         # visualize_recon(epoch)
         print("extract latent representations...")
-        # save_latent_representations(epoch)
+        save_latent_representations(epoch)
         print("sample from prior...")
         # sampled = model.generate_sample(args.sample_number)
         # for i, g in enumerate(sampled):
