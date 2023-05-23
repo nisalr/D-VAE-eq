@@ -82,6 +82,8 @@ parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
 parser.add_argument('--cond', action='store_true', default=False,
                     help='condition DVAE on dataset')
+parser.add_argument('--cond-size', type=int, default=9,
+                    help='size of the dataset embedding vector')
 
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -95,6 +97,7 @@ np.random.seed(args.seed)
 random.seed(args.seed)
 print(args)
 is_cond = args.cond
+cond_size = args.cond_size
 
 '''Prepare data'''
 args.file_dir = os.path.dirname(os.path.realpath('__file__'))
@@ -165,7 +168,8 @@ model = eval(args.model)(
         graph_args.END_TYPE, 
         hs=args.hs, 
         nz=args.nz, 
-        bidirectional=args.bidirectional
+        bidirectional=args.bidirectional,
+        cs=cond_size
         )
 if args.predictor:
     predictor = nn.Sequential(

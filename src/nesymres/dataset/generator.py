@@ -2,53 +2,39 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
-import ast
+
 from logging import getLogger
 from multiprocessing import Value
 import os
 import io
 import re
 import sys
-sys.path.append(os.getcwd())
 import math
 import itertools
 from collections import OrderedDict
 import numpy as np
 import numexpr as ne
-import pandas as pd
 import sympy as sp
 from sympy.parsing.sympy_parser import parse_expr
-from sympy import lambdify
 from sympy.core.cache import clear_cache
 from sympy.calculus.util import AccumBounds
 from sympy.core.rules import Transform
 from sympy import sympify, Symbol
 from random import random
-from sympy_utils import (
+from .sympy_utils import (
     remove_root_constant_terms,
     reduce_coefficients,
     reindex_coefficients,
     add_multiplicative_constants,
     add_additive_constants
 )
-from sympy_utils import (
+from .sympy_utils import (
     extract_non_constant_subtree,
     simplify_const_with_coeff,
     clean_degree2_solution,
 )
-from sympy_utils import remove_mul_const, has_inf_nan, has_I, simplify
+from .sympy_utils import remove_mul_const, has_inf_nan, has_I, simplify
 from collections import Counter
-from dclasses import GeneratorDetails
-import igraph
-from util import is_valid_EQ, decode_igraph_to_EQ
-from tqdm import tqdm
-
-from src.nesymres.architectures.model import Model
-from src.nesymres.dclasses import FitParams, NNEquation, BFGSParams
-from functools import partial
-import torch
-import json
-import gc
 
 CLEAR_SYMPY_CACHE_FREQ = 10000
 
@@ -56,22 +42,17 @@ CLEAR_SYMPY_CACHE_FREQ = 10000
 class NotCorrectIndependentVariables(Exception):
     pass
 
-
 class UnknownSymPyOperator(Exception):
     pass
-
 
 class ValueErrorExpression(Exception):
     pass
 
-
 class ImAccomulationBounds(Exception):
     pass
 
-
 class InvalidPrefixExpression(Exception):
     pass
-
 
 class Generator(object):
     SYMPY_OPERATORS = {
@@ -98,13 +79,6 @@ class Generator(object):
         sp.cosh: "cosh",
         sp.tanh: "tanh",
 
-    }
-
-    TYPE_MAP = {
-        "add": 2,
-        "mul": 3,
-        "sin": 4,
-        "exp": 5
     }
 
     OPERATORS = {
@@ -142,14 +116,14 @@ class Generator(object):
     }
     operators = sorted(list(OPERATORS.keys()))
     constants = ["pi", "E"]
-
     def __init__(self, params):
         self.max_ops = params.max_ops
         self.max_len = params.max_len
-        # self.positive = params.positive
+        #self.positive = params.positive
+
 
         # parse operators with their weights
-
+        
         ops = params.operators.split(",")
         ops = sorted([x.split(":") for x in ops])
         assert len(ops) >= 1 and all(o in self.OPERATORS for o, _ in ops)
@@ -173,36 +147,37 @@ class Generator(object):
 
         # symbols / elements
         self.variables = OrderedDict({})
-        for var in params.variables:
-            self.variables[str(var)] = sp.Symbol(str(var), real=True, nonzero=True)
+        for var in params.variables: 
+            self.variables[str(var)] =sp.Symbol(str(var), real=True, nonzero=True)
         self.var_symbols = list(self.variables)
-        self.pos_dict = {x: idx for idx, x in enumerate(self.var_symbols)}
+        self.pos_dict = {x:idx for idx, x in enumerate(self.var_symbols)}        
         self.placeholders = {}
         self.placeholders["cm"] = sp.Symbol("cm", real=True, nonzero=True)
-        self.placeholders["ca"] = sp.Symbol("ca", real=True, nonzero=True)
+        self.placeholders["ca"] = sp.Symbol("ca",real=True, nonzero=True)
         assert 1 <= len(self.variables)
         # We do not no a priori how many coefficients an expression has, so to be on the same side we equal to two times the maximum number of expressions
-        self.coefficients = [f"{x}_{i}" for x in self.placeholders.keys() for i in range(2 * params.max_len)]
+        self.coefficients = [f"{x}_{i}" for x in self.placeholders.keys() for i in range(2*params.max_len)] 
         assert all(v in self.OPERATORS for v in self.SYMPY_OPERATORS.values())
 
         # SymPy elements
         self.local_dict = {}
         for k, v in list(
-                self.variables.items()
-        ):
+            self.variables.items()
+        ):  
             assert k not in self.local_dict
             self.local_dict[k] = v
 
         digits = [str(i) for i in range(-3, abs(6))]
         self.words = (
-                list(self.variables.keys())
-                + [
-                    x
-                    for x in self.operators
-                    if x not in ("pow2", "pow3", "pow4", "pow5", "sub", "inv")
-                ]
-                + digits
-        )
+            list(self.variables.keys())
+            + [
+                x
+                for x in self.operators
+                if x not in ("pow2", "pow3", "pow4", "pow5", "sub", "inv")
+            ]
+            + digits
+        )  
+
 
         self.id2word = {i: s for i, s in enumerate(self.words, 4)}
         self.word2id = {s: i for i, s in self.id2word.items()}
@@ -220,7 +195,7 @@ class Generator(object):
         assert len(set(self.word2id.values())) == len(self.word2id.values())
         assert len(set(self.id2word.values())) == len(self.id2word.values())
 
-        # assert len(self.words) == len(set(self.words))
+        #assert len(self.words) == len(set(self.words))
 
         # number of words / indices
         self.n_words = params.n_words = len(self.words)
@@ -237,19 +212,21 @@ class Generator(object):
         # rewrite expressions
         self.rewrite_functions = self.return_rewrite_functions(params)
 
+
     @classmethod
     def return_local_dict(cls, variables=None):
         local_dict = {}
         for k, v in list(
-                variables.items()
-        ):
+            variables.items()
+        ):  
             assert k not in local_dict
             local_dict[k] = v
         return local_dict
 
+
     @classmethod
-    def return_rewrite_functions(cls, params):
-        r = [
+    def return_rewrite_functions(cls,params):
+        r =  [
             x for x in params.rewrite_functions.split(",") if x != ""
         ]
         assert len(r) == len(set(r))
@@ -346,16 +323,16 @@ class Generator(object):
             max_idxs = max([self.pos_dict[x] for x in curr_leaves]) + 1
         else:
             max_idxs = 0
-        return [list(self.variables.keys())[rng.randint(low=0, high=min(max_idxs + 1, len(self.variables.keys())))]]
+        return [list(self.variables.keys())[rng.randint(low=0,high=min(max_idxs+1, len(self.variables.keys())))]]
 
     def _generate_expr(
-            self,
-            nb_total_ops,
-            rng,
-            max_int=1,
-            require_x=False,
-            require_y=False,
-            require_z=False,
+        self,
+        nb_total_ops,
+        rng,
+        max_int = 1,
+        require_x=False,
+        require_y=False,
+        require_z=False,
     ):
         """
         Create a tree with exactly `nb_total_ops` operators.
@@ -367,6 +344,7 @@ class Generator(object):
 
         # create tree
         for nb_ops in range(nb_total_ops, 0, -1):
+
             # next operator, arity and position
             skipped, arity = self.sample_next_pos_ubi(nb_empty, nb_ops, rng)
             if arity == 1:
@@ -375,7 +353,7 @@ class Generator(object):
                 op = rng.choice(self.bin_ops, p=self.bin_ops_probs)
 
             nb_empty += (
-                    self.OPERATORS[op] - 1 - skipped
+                self.OPERATORS[op] - 1 - skipped
             )  # created empty nodes - skipped future leaves
             t_leaves += self.OPERATORS[op] - 1  # update number of total leaves
             l_leaves += skipped  # update number of left leaves
@@ -383,12 +361,11 @@ class Generator(object):
             # update tree
             pos = [i for i, v in enumerate(stack) if v is None][l_leaves]
             stack = (
-                    stack[:pos]
-                    + [op]
-                    + [None for _ in range(self.OPERATORS[op])]
-                    + stack[pos + 1:]
+                stack[:pos]
+                + [op]
+                + [None for _ in range(self.OPERATORS[op])]
+                + stack[pos + 1 :]
             )
-
 
         # sanity check
         assert len([1 for v in stack if v in self.all_ops]) == nb_total_ops
@@ -400,15 +377,16 @@ class Generator(object):
             new_element = self.get_leaf(curr_leaves, rng)
             leaves.append(new_element)
             curr_leaves.add(*new_element)
+
         # insert leaves into tree
         for pos in range(len(stack) - 1, -1, -1):
             if stack[pos] is None:
-                stack = stack[:pos] + leaves.pop() + stack[pos + 1:]
+                stack = stack[:pos] + leaves.pop() + stack[pos + 1 :]
         assert len(leaves) == 0
         return stack
-
+    
     @classmethod
-    def  write_infix(cls, token, args):
+    def write_infix(cls, token, args):
         """
         Infix representation.
         Convert prefix expressions to a format that SymPy can parse.
@@ -498,12 +476,14 @@ class Generator(object):
                 curr["ca"] += 1
         return expr_list
 
-    def return_constants(self, expr_list):
-        # string = "".join(expr_list)
+    def return_constants(self,expr_list):
+        #string = "".join(expr_list)
         curr = Counter()
         curr["cm"] = [x for x in expr_list if x[:3] == "cm_"]
         curr["ca"] = [x for x in expr_list if x[:3] == "ca_"]
         return curr
+            
+
 
     # def sign(self, x):
     #     return ("", "-")[x < 0]
@@ -521,18 +501,18 @@ class Generator(object):
             args = []
             l1 = expr[1:]
             for _ in range(cls.OPERATORS[t]):  # Arity
-                i1, l1 = cls._prefix_to_infix(l1, coefficients=coefficients, variables=variables)
+                i1, l1 = cls._prefix_to_infix(l1,  coefficients=coefficients, variables=variables)
                 args.append(i1)
             return cls.write_infix(t, args), l1
         elif t in coefficients:
             return "{" + t + "}", expr[1:]
         elif (
-                t in variables
-                or t in cls.constants
-                or t == "I"
+            t in variables
+            or t in cls.constants
+            or t == "I"
         ):
             return t, expr[1:]
-        else:  # INT
+        else: #INT
             val = expr[0]
             return str(val), expr[1:]
 
@@ -548,6 +528,7 @@ class Generator(object):
                 inner_edges, li = self._prefix_to_edges(li)
                 edges.extend(inner_edges)
         return edges, li
+
 
     @classmethod
     def prefix_to_infix(cls, expr, coefficients=None, variables=None):
@@ -603,20 +584,20 @@ class Generator(object):
         Parse a SymPy expression given an initial root operator.
         """
         n_args = len(expr.args)
-
+    
         assert (
-                (op == "add" or op == "mul")
-                and (n_args >= 2)
-                or (op != "add" and op != "mul")
-                and (1 <= n_args <= 2)
+            (op == "add" or op == "mul")
+            and (n_args >= 2)
+            or (op != "add" and op != "mul")
+            and (1 <= n_args <= 2)
         )
 
         # square root
         if (
-                op == "pow"
-                and isinstance(expr.args[1], sp.Rational)
-                and expr.args[1].p == 1
-                and expr.args[1].q == 2
+            op == "pow"
+            and isinstance(expr.args[1], sp.Rational)
+            and expr.args[1].p == 1
+            and expr.args[1].q == 2
         ):
             return ["sqrt"] + Generator.sympy_to_prefix(expr.args[0])
 
@@ -630,7 +611,7 @@ class Generator(object):
         return parse_list
 
     @classmethod
-    def sympy_to_prefix(cls, expr):
+    def sympy_to_prefix(cls,expr):
         """
         Convert a SymPy expression to a prefix one.
         """
@@ -640,7 +621,7 @@ class Generator(object):
             return [str(expr)]  # self.write_int(int(str(expr)))
         elif isinstance(expr, sp.Rational):
             return (
-                    ["div"] + [str(expr.p)] + [str(expr.q)]
+                ["div"] + [str(expr.p)] + [str(expr.q)]
             )  # self.write_int(int(expr.p)) + self.write_int(int(expr.q))
         elif expr == sp.E:
             return ["E"]
@@ -658,19 +639,20 @@ class Generator(object):
     def process_equation(self, infix):
         f = self.infix_to_sympy(infix, self.variables, self.rewrite_functions)
 
+        
         symbols = set([str(x) for x in f.free_symbols])
         if not symbols:
             raise NotCorrectIndependentVariables()
-            # return None, f"No variables in the expression, skip"
+            #return None, f"No variables in the expression, skip"
         for s in symbols:
             if not len(set(self.var_symbols[:self.pos_dict[s]]) & symbols) == len(self.var_symbols[:self.pos_dict[s]]):
                 raise NotCorrectIndependentVariables()
-                # return None, f"Variable {s} in the expressions, but not the one before"
-
+                #return None, f"Variable {s} in the expressions, but not the one before"
+        
         f = remove_root_constant_terms(f, list(self.variables.values()), 'add')
         f = remove_root_constant_terms(f, list(self.variables.values()), 'mul')
-        # f = add_multiplicative_constants(f, self.placeholders["cm"], unary_operators=self.una_ops)
-        # f = add_additive_constants(f, self.placeholders, unary_operators=self.una_ops)
+        f = add_multiplicative_constants(f, self.placeholders["cm"], unary_operators=self.una_ops)
+        f = add_additive_constants(f, self.placeholders, unary_operators=self.una_ops)
 
         return f
 
@@ -681,230 +663,31 @@ class Generator(object):
         """
         nb_ops = rng.randint(3, self.max_ops + 1)
         f_expr = self._generate_expr(nb_ops, rng, max_int=1)
-        # print('f expr', f_expr)
         infix = self.prefix_to_infix(f_expr, coefficients=self.coefficients, variables=self.variables)
         f = self.process_equation(infix)
         f_prefix = self.sympy_to_prefix(f)
         # skip too long sequences
         if len(f_expr) + 2 > self.max_len:
             raise ValueErrorExpression("Sequence longer than max length")
-            # return None, "Sequence longer than max length"
+            #return None, "Sequence longer than max length"
 
         # skip when the number of operators is too far from expected
         real_nb_ops = sum(1 if op in self.OPERATORS else 0 for op in f_expr)
         if real_nb_ops < nb_ops / 2:
             raise ValueErrorExpression("Too many operators")
-            # return None, "Too many operators"
+            #return None, "Too many operators"
 
         if f == "0" or type(f) == str:
             raise ValueErrorExpression("Not a function")
-            # return None, "Not a function"
-
+            #return None, "Not a function"
+        
         sy = f.free_symbols
         variables = set(map(str, sy)) - set(self.placeholders.keys())
-        return f_expr, variables
-
-    def decode_EQ_to_igraph(self, prefix, operand_list, operator_dict):
-        postfix = list(reversed(prefix))
-        # n = len(postfix)
-        g = igraph.Graph(directed=True)
-        var_count = len(operand_list)
-        g.add_vertices(var_count + 1)
-        g.vs[0]['type'] = 0  # input node
-        vertex_count = 1
-        vertex_op_dict = {}
-
-        for var_idx, var_name in enumerate(operand_list):
-            g.vs[var_idx + 1]['type'] = var_idx + 2#input variable
-            vertex_op_dict[var_name] = var_idx + 1
-            g.add_edge(0, var_idx + 1)
-            vertex_count += 1
-        # print('vcount1', g.vcount())
-
-        eq_stack = []
-        for item in postfix:
-            # print(eq_stack)
-            if item not in operator_dict:
-                eq_stack.append(item)
-            else:
-                if self.OPERATORS[item] == 2:
-                    oper1 = eq_stack.pop()
-                    op1_vertex = vertex_op_dict[oper1]
-                    oper2 = eq_stack.pop()
-                    op2_vertex = vertex_op_dict[oper2]
-                    g.add_vertices(1)
-                    g.vs[vertex_count]['type'] = operator_dict[item] + var_count + 2
-                    vertex_op_dict['op' + str(vertex_count)] = vertex_count
-                    eq_stack.append('op' + str(vertex_count))
-                    # print('vcount2', g.vcount(), op1_vertex, op2_vertex, vertex_count)
-                    g.add_edge(op1_vertex, vertex_count)
-                    g.add_edge(op2_vertex, vertex_count)
-                    vertex_count += 1
-                else:
-                    oper = eq_stack.pop()
-                    oper_vertex = vertex_op_dict[oper]
-                    g.add_vertices(1)
-                    g.vs[vertex_count]['type'] = operator_dict[item] + var_count + 2
-                    vertex_op_dict['op' + str(vertex_count)] = vertex_count
-                    eq_stack.append('op' + str(vertex_count))
-                    # print('vcount3', g.vcount(), oper_vertex, vertex_count)
-                    g.add_edge(oper_vertex, vertex_count)
-                    vertex_count += 1
-        g.add_vertices(1)
-        g.vs[vertex_count]['type'] = 1  # output node
-        g.add_edge(vertex_count - 1, vertex_count)
-        vertex_count += 1
-        return g, vertex_count
-
-
-if __name__=="__main__":
-    params = {
-        "max_len": 12,
-        "operators": "add:2,mul:2,ln:1,sin:1,cos:1",
-        "max_ops": 10,
-        "rewrite_functions": "",
-        "variables": ["x_1", "x_2"],
-        "eos_index": 1,
-        "pad_index": 0
-    }
-    dataset_file = 'data/eq_structures_9_nesym.txt'
-    params = GeneratorDetails(**params)
-    gen = Generator(params)
-    eq_count = 100000
-
-    test_dataset_count = 1
-    v_count = []
-    expr_list = []
-    op_dict = {'add': 0, 'mul': 1, 'sin': 2, 'ln': 3, 'cos': 4}
-    operand_list = params.variables
-
-    ## Load equation configuration and architecture configuration
-    import omegaconf
-    with open('src/nesymres/eq_setting.json', 'r') as json_file:
-      eq_setting = json.load(json_file)
-
-    cfg = omegaconf.OmegaConf.load("src/nesymres/config.yaml")
-    weights_path = "weights/nesymres_100M.ckpt"
-    model = Model.load_from_checkpoint(weights_path, cfg=cfg.architecture)
-    model.eval()
-    if torch.cuda.is_available():
-        model.cuda()
-        ## Set up BFGS load rom the hydra config yaml
-
-    bfgs = BFGSParams(
-            activated=cfg.inference.bfgs.activated,
-            n_restarts=cfg.inference.bfgs.n_restarts,
-            add_coefficients_if_not_existing=cfg.inference.bfgs.add_coefficients_if_not_existing,
-            normalization_o=cfg.inference.bfgs.normalization_o,
-            idx_remove=cfg.inference.bfgs.idx_remove,
-            normalization_type=cfg.inference.bfgs.normalization_type,
-            stop_time=cfg.inference.bfgs.stop_time,
-        )
-    params_fit = FitParams(word2id=eq_setting["word2id"],
-                           id2word={int(k): v for k,v in eq_setting["id2word"].items()},
-                           una_ops=eq_setting["una_ops"],
-                           bin_ops=eq_setting["bin_ops"],
-                           total_variables=list(eq_setting["total_variables"]),
-                           total_coefficients=list(eq_setting["total_coefficients"]),
-                           rewrite_functions=list(eq_setting["rewrite_functions"]),
-                           bfgs=bfgs,
-                           beam_size=cfg.inference.beam_size #This parameter is a tradeoff between accuracy and fitting time
-                            )
-    embed_func = partial(model.dataset_encoding, cfg_params=params_fit)
-
-    for i in tqdm(range(eq_count)):
-        try:
-            expr, var = gen.generate_equation(rng=np.random)
-            # print('expr', expr)
-        except ValueErrorExpression:
-            continue
-        # print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
-
-        g, vertex_count = gen.decode_EQ_to_igraph(expr, operand_list, op_dict)
-        # print(decode_igraph_to_EQ(g))
-        # print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
-        valid_eq = is_valid_EQ(g)
-        if not valid_eq:
-            continue
-        expr_list.append(expr)
-        v_count.append(vertex_count)
-    print(max(v_count), len(v_count))
-    print('total count', len(v_count), 'unique count', pd.Series([str(x) for x in expr_list]).nunique())
-    expr_list = list(pd.Series([str(x) for x in expr_list]).unique())
-
-    with open(dataset_file, 'w') as f:
-        f.write(str(op_dict))
-        f.write('\n')
-        f.write(str(operand_list))
-        f.write('\n')
-        x1_l = []
-        x2_l = []
-        x3_l = []
-        y_l = []
-        for expr in tqdm(expr_list):
-            infix_expr = gen.prefix_to_infix(ast.literal_eval(expr), coefficients=gen.coefficients, variables=var)
-            sympy_expr = parse_expr(infix_expr)
-            x1_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
-            x2_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
-            x3_vals = np.array(([0]*500)).reshape(1, 500, 1)
-            sym_func = lambdify(['x_1', 'x_2'], sympy_expr)
-            y_vals = np.nan_to_num(sym_func(x1_vals, x2_vals))
-            X = np.concatenate((x1_vals, x2_vals, x3_vals), axis=2)
-            y_vals = y_vals.reshape(1, 500)
-            x1_l.append(x1_vals)
-            x2_l.append(x2_vals)
-            x3_l.append(x3_vals)
-            y_l.append(y_vals)
-            dcond = embed_func(X, y_vals).reshape(-1)
-            f.write(expr + ',' + str(list(dcond.tolist())))
-            f.write('\n')
-
-        # x1_all = np.concatenate(x1_l, axis=0)
-        # x2_all = np.concatenate(x2_l, axis=0)
-        # x3_all = np.concatenate(x3_l, axis=0)
-        # y_all = np.concatenate(y_l, axis=0)
-        # x_all = np.concatenate((x1_all, x2_all, x3_all), axis=2)
-        # print(y_all.shape, x_all.shape)
-        # dcond = embed_func(x_all, y_all)
-        # dcond = dcond.reshape(dcond.shape[0], -1)
-        # for i, dcond_cur in enumerate(dcond):
-        #     f.write(expr_list[i] + ',' + str(list(dcond_cur.tolist())))
-        #     f.write('\n')
-
-    # for dataset_num in range(2,3):
-    #     valid_expr = False
-    #     while not valid_expr:
-    #         try:
-    #             expr, var = gen.generate_equation(rng=np.random)
-    #             g, vertex_count = gen.decode_EQ_to_igraph(expr, operand_list, op_dict)
-    #             valid_eq = is_valid_EQ(g)
-    #             if not valid_eq:
-    #                 continue
-    #             valid_expr = True
-    #             # print('expr', expr)
-    #         except ValueErrorExpression:
-    #             continue
-    #     print(g)
-    #     infix_expr = gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var)
-    #     print(infix_expr)
-    #     sympy_expr = parse_expr(infix_expr)
-    #     print(sympy_expr)
-    #     x1_vals = np.random.rand(10000)*4 + 1
-    #     x2_vals = np.random.rand(10000)*4 + 1
-    #
-    #     sym_func = lambdify(['x_1', 'x_2'], sympy_expr)
-    #     y_vals = sym_func(x1_vals, x2_vals)
-    #
-    #     df = pd.DataFrame({'x_1': x1_vals, 'x_2': x2_vals, 'y': y_vals})
-    #     df['eq'] = infix_expr
-    #     df.to_csv('sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), index=False)
+        return f_prefix, variables
 
 
 
-
-
-
-
+   
 
 
 
