@@ -7,6 +7,7 @@ import torch.nn.init as init
 import numpy as np
 import igraph
 import pdb
+from src.nesymres import model
 
 # This file implements several VAE models for DAGs, including SVAE, GraphRNN, DVAE, GCN etc.
 

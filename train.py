@@ -777,7 +777,7 @@ for epoch in range(start_epoch + 1, args.epochs + 1):
         print("visualize reconstruction examples...")
         # visualize_recon(epoch)
         print("extract latent representations...")
-        # save_latent_representations(epoch)
+        save_latent_representations(epoch)
         print("sample from prior...")
         # sampled = model.generate_sample(args.sample_number)
         # for i, g in enumerate(sampled):
