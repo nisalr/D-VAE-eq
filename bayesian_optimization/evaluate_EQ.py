@@ -1,3 +1,5 @@
+import sys
+sys.path.append(os.getcwd())
 import numpy as np
 import os
 from sympy.parsing.sympy_parser import parse_expr
@@ -59,7 +61,6 @@ class Eval_EQ(object):
             x_vals = df[['x_1', 'x_2', 'x_3']].values
             y_vals = df[['y']].values
             self.d_cond = embed_func(x_vals, y_vals).reshape(-1)
->>>>>>> 7847a26743b6dc787870f8fa6afbc0a113f6dedb
         self.sr_dataset = df
 
     def eval(self, input_string):
