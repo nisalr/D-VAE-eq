@@ -24,6 +24,7 @@ from evaluate_BN import Eval_BN
 from evaluate_EQ import Eval_EQ
 from shutil import copy
 
+
 '''Experiment settings'''
 parser = argparse.ArgumentParser(description='Bayesian optimization experiments.')
 # must specify
@@ -140,7 +141,7 @@ if data_type == 'ENAS':
     eva = Eval_NN()  # build the network acc evaluater
                      # defined in ../software/enas/src/cifar10/evaluation.py
 elif data_type == 'EQ':
-    eva = Eval_EQ(sr_dataset_path='sr_evaluation/sr_dataset_{}.csv'.format(dataset_num))
+    eva = Eval_EQ(sr_dataset_path='sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), embed_mode='nesymres')
     print('SR evaluation on dataset {}'.format(dataset_num))
 
 data = loadmat(data_dir + '{}_latent_epoch{}.mat'.format(data_name, checkpoint))  # load train/test data
