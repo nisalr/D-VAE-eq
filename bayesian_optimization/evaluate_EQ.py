@@ -61,7 +61,7 @@ class Eval_EQ(object):
             df['x_3'] = 0
             x_vals = np.expand_dims(df[['x_1', 'x_2', 'x_3']].values, 0)
             y_vals = np.expand_dims(df[['y']].values, 0)
-            self.d_cond = embed_func(x_vals, y_vals).reshape(-1)
+            self.d_cond = embed_func(x_vals, y_vals).reshape(-1).detach().cpu().numpy()
         self.sr_dataset = df
 
     def eval(self, input_string):
