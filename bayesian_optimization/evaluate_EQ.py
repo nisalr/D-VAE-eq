@@ -55,7 +55,8 @@ class Eval_EQ(object):
                                    beam_size=cfg.inference.beam_size #This parameter is a tradeoff between accuracy and fitting time
                                     )
             embed_func = partial(model.dataset_encoding, cfg_params=params_fit)
-            x_vals = df[['x_1', 'x_2']].values
+            df['x_3'] = 0
+            x_vals = df[['x_1', 'x_2', 'x_3']].values
             y_vals = df[['y']].values
             self.d_cond = embed_func(x_vals, y_vals).reshape(-1)
         self.sr_dataset = df
