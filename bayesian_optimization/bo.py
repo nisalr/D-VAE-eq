@@ -130,9 +130,9 @@ lr = 0.0001  # the learning rate to train the SGP model
 max_iter = 100  # how many iterations to optimize the SGP each time
 decode_attempts = 5
 gp_points = 50
-train_points = 200
-test_points = 25
-bo_seed_count = 15
+train_points = 100
+test_points = 50
+bo_seed_count = 10
 
 # architecture performance evaluator
 if data_type == 'ENAS':
@@ -213,8 +213,12 @@ for rand_idx in range(1,bo_seed_count + 1):
         random_inputs = np.random.randn(train_points, nz) * X_train.std(0) + X_train.mean(0)
         random_inputs = torch.FloatTensor(random_inputs).cuda()
         if is_cond:
+            y_cond_single = eva.get_dcond()
+            y_cond = torch.cuda.FloatTensor(
+                np.broadcast_to(y_cond_single, shape=(random_inputs.shape[0], y_cond_single.shape[0])))
+            print(y_cond)
             valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts, max_n, False, data_type,
-                                                         y_cond=eva.get_dcond())
+                                                         y_cond=y_cond)
         else:
             valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts, max_n, False, data_type)
         print("Evaluating random points")
@@ -266,8 +270,11 @@ for rand_idx in range(1,bo_seed_count + 1):
         random_inputs = np.random.randn(test_points, nz) * X_train.std(0) + X_train.mean(0)
         random_inputs = torch.FloatTensor(random_inputs).cuda()
         if is_cond:
+            y_cond_single = eva.get_dcond()
+            y_cond = torch.cuda.FloatTensor(
+                np.broadcast_to(y_cond_single, shape=(random_inputs.shape[0], y_cond_single.shape[0])))
             valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts, max_n, False, data_type,
-                                                         y_cond=eva.get_dcond())
+                                                         y_cond=y_cond)
         else:
             valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts, max_n, False, data_type)
 
@@ -489,8 +496,11 @@ for rand_idx in range(1,bo_seed_count + 1):
             next_inputs = sgp.batched_greedy_ei(batch_size, np.min(X_train, 0), np.max(X_train, 0), np.mean(X_train, 0), np.std(X_train, 0), sample=sample_dist)
 
         if is_cond:
+            y_cond_single = eva.get_dcond()
+            y_cond = torch.cuda.FloatTensor(
+                np.broadcast_to(y_cond_single, shape=(next_inputs.shape[0], y_cond_single.shape[0])))
             valid_arcs_final = decode_from_latent_space(torch.FloatTensor(next_inputs).cuda(), model,
-                                                        decode_attempts, max_n, False, data_type, y_cond=eva.get_dcond())
+                                                        decode_attempts, max_n, False, data_type, y_cond=y_cond)
         else:
             valid_arcs_final = decode_from_latent_space(torch.FloatTensor(next_inputs).cuda(), model,
                                                         decode_attempts, max_n, False, data_type)
@@ -502,8 +512,11 @@ for rand_idx in range(1,bo_seed_count + 1):
                 random_inputs = np.random.randn(batch_size, nz) * X_train.std(0) + X_train.mean(0)
             random_inputs = torch.FloatTensor(random_inputs).cuda()
             if is_cond:
+                y_cond_single = eva.get_dcond()
+                y_cond = torch.cuda.FloatTensor(
+                    np.broadcast_to(y_cond_single, shape=(random_inputs.shape[0], y_cond_single.shape[0])))
                 valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts,
-                                                             max_n, False, data_type, y_cond=eva.get_dcond())
+                                                             max_n, False, data_type, y_cond=y_cond)
             else:
                 valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts,
                                                              max_n, False, data_type)
