@@ -59,7 +59,7 @@ class Eval_EQ(object):
                                     )
             embed_func = partial(model.dataset_encoding, cfg_params=params_fit)
             df['x_3'] = 0
-            x_vals = df[['x_1', 'x_2', 'x_3']].values
+            x_vals = np.expand_dims(df[['x_1', 'x_2', 'x_3']].values, 0)
             y_vals = df[['y']].values
             self.d_cond = embed_func(x_vals, y_vals).reshape(-1)
         self.sr_dataset = df
