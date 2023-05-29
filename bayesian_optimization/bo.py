@@ -15,7 +15,7 @@ import numpy as np
 import scipy.io
 from scipy.io import loadmat
 from scipy.stats import pearsonr
-sys.path.append('%s/../software/enas' % os.path.dirname(os.path.realpath(__file__))) 
+# sys.path.append('%s/../software/enas' % os.path.dirname(os.path.realpath(__file__)))
 sys.path.append('%s/..' % os.path.dirname(os.path.realpath(__file__))) 
 sys.path.insert(0, '../')
 from models import *
@@ -74,6 +74,8 @@ parser.add_argument('--bidirectional', action='store_true', default=False,
                     help='whether to use bidirectional encoding')
 parser.add_argument('--cond', action='store_true', default=False,
                     help='condition DVAE on dataset')
+parser.add_argument('--cond-size', type=int, default=9,
+                    help='size of the dataset embedding vector')
 
 args = parser.parse_args()
 data_name = args.data_name
@@ -88,6 +90,7 @@ bidir = args.bidirectional
 vis_2d = args.vis_2d
 dataset_num = args.dnum
 is_cond = args.cond
+cond_size = args.cond_size
 
 '''Load hyperparameters'''
 with open(data_dir + 'cmd_input.txt', 'r') as f:
@@ -183,7 +186,8 @@ for rand_idx in range(1,bo_seed_count + 1):
             END_TYPE=graph_args.END_TYPE, 
             hs=hs, 
             nz=nz, 
-            bidirectional=bidir, 
+            bidirectional=bidir,
+            cs=cond_size
             )
     if args.predictor:
         predictor = nn.Sequential(
