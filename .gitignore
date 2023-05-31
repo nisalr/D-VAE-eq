@@ -6,3 +6,9 @@ Theano-master
 *.out
 
 *.ckpt
+
+data/eq_structures_10_nesym.txt
+
+data/eq_structures_11_nesym.txt
+
+data/eq_structures_12_nesym.txt
