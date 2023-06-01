@@ -48,7 +48,6 @@ from src.nesymres.dclasses import FitParams, NNEquation, BFGSParams
 from functools import partial
 import torch
 import json
-import gc
 
 CLEAR_SYMPY_CACHE_FREQ = 10000
 
@@ -767,10 +766,10 @@ if __name__=="__main__":
         "eos_index": 1,
         "pad_index": 0
     }
-    dataset_file = 'data/eq_structures_9_nesym.txt'
+    dataset_file = 'data/eq_structures_13_nesym.txt'
     params = GeneratorDetails(**params)
     gen = Generator(params)
-    eq_count = 100000
+    eq_count = 5000000
 
     test_dataset_count = 1
     v_count = []
@@ -856,6 +855,7 @@ if __name__=="__main__":
             x3_l.append(x3_vals)
             y_l.append(y_vals)
             dcond = embed_func(X, y_vals).reshape(-1)
+            print(dcond.shape)
             f.write(expr + ',' + str(list(dcond.tolist())))
             f.write('\n')
 
