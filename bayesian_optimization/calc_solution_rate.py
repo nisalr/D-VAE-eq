@@ -2,14 +2,14 @@ import sys, os
 sys.path.append(os.getcwd())
 from bayesian_optimization.symbolic_utils import (clean_pred_model,get_sym_model,round_floats,
                             complexity, rewrite_AIFeynman_model_size)
-from sympy import parse_expr
+from sympy import parse_expr, expand_log
 import pandas as pd
 
 
 def solution_match(true_eq, pred_eq):
-    pred_eq_simp = clean_pred_model(pred_eq)
-    true_eq = parse_expr(true_eq)
-
+    pred_eq_simp = expand_log(clean_pred_model(pred_eq), force=True)
+    true_eq = expand_log(clean_pred_model(true_eq), force=True)
+    print('true pred', true_eq, pred_eq)
     # if the model is somewhat accurate, check and see if it
     # is an exact symbolic match
     sym_diff = round_floats(true_eq - pred_eq_simp)
