@@ -1,6 +1,6 @@
 import sys, os
 sys.path.append(os.getcwd())
-from bayesian_optimization.symbolic_utils import (clean_pred_model,get_sym_model,round_floats,
+from symbolic_utils import (clean_pred_model,get_sym_model,round_floats,
                             complexity, rewrite_AIFeynman_model_size)
 from sympy import parse_expr, expand_log
 import pandas as pd
