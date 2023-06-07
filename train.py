@@ -752,7 +752,17 @@ if args.only_test:
     #interpolation_exp2(epoch)
     #interpolation_exp3(epoch)
     #prior_validity(True)
-    test()
+    if args.predictor:
+        Nll, acc, pred_rmse = test()
+    else:
+        Nll, acc = test()
+        pred_rmse = 0
+    r_valid, r_unique, r_novel = prior_validity(True)
+    with open(test_results_name, 'a') as result_file:
+        result_file.write("Epoch {} Test recon loss: {} recon acc: {:.4f} r_valid: {:.4f}".format(
+                epoch, Nll, acc, r_valid) +
+                " r_unique: {:.4f} r_novel: {:.4f} pred_rmse: {:.4f}\n".format(
+                r_unique, r_novel, pred_rmse))
     #smoothness_exp(epoch, 0.1)
     #smoothness_exp(epoch, 0.05)
     #interpolation_exp(epoch)
