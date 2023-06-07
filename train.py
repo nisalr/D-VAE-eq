@@ -82,7 +82,7 @@ parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
 parser.add_argument('--cond', action='store_true', default=False,
                     help='condition DVAE on dataset')
-parser.add_argument('--cond-size', type=int, default=9,
+parser.add_argument('--cond-size', type=int, default=None,
                     help='size of the dataset embedding vector')
 
 args = parser.parse_args()
@@ -324,13 +324,13 @@ def test():
     for i, sample in enumerate(pbar):
         if is_cond:
             g, y, y_cond = sample
+            y_cond_batch.append(y_cond)
         else:
             g, y = sample
         if args.model.startswith('SVAE'):
             g = g.to(device)
         g_batch.append(g)
         y_batch.append(y)
-        y_cond_batch.append(y_cond)
         if len(g_batch) == args.infer_batch_size or i == len(test_data) - 1:
             g = model._collate_fn(g_batch)
             if is_cond:
@@ -353,7 +353,10 @@ def test():
             for _ in range(encode_times):
                 z = model.reparameterize(mu, logvar)
                 for _ in range(decode_times):
-                    g_recon = model.decode(z, y=y_cond_batch)
+                    if is_cond:
+                        g_recon = model.decode(z, y=y_cond_batch)
+                    else:
+                        g_recon = model.decode(z)
                     n_perfect += sum(is_same_DAG(g0, g1) for g0, g1 in zip(g, g_recon))
             g_batch = []
             y_batch = []
@@ -744,12 +747,12 @@ if os.path.exists(loss_name) and not args.keep_old:
 if args.only_test:
     epoch = args.continue_from
     #sampled = model.generate_sample(args.sample_number)
-    save_latent_representations(epoch)
+    #save_latent_representations(epoch)
     #visualize_recon(300)
     #interpolation_exp2(epoch)
     #interpolation_exp3(epoch)
     #prior_validity(True)
-    #test()
+    test()
     #smoothness_exp(epoch, 0.1)
     #smoothness_exp(epoch, 0.05)
     #interpolation_exp(epoch)

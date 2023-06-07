@@ -535,7 +535,7 @@ class SVAE_GraphRNN_BFS(SVAE):
 '''
 class DVAE(nn.Module):
     def __init__(self, max_n, nvt, START_TYPE, END_TYPE, hs=501, nz=56, bidirectional=False, vid=True,
-                 cs=9, cs_red=10):
+                 cs=9, cs_red=40):
         super(DVAE, self).__init__()
         self.max_n = max_n  # maximum number of vertices
         self.nvt = nvt  # number of vertex types
@@ -547,14 +547,14 @@ class DVAE(nn.Module):
         self.bidir = bidirectional  # whether to use bidirectional encoding
         self.vid = vid
         self.device = None
-        self.cs = cs # size of the condition vector
-        if cs_red < cs:
-            self.cs_red = cs_red
-            self.fc_cond = nn.Linear(self.cs, cs_red)
-        else:
-            self.cs_red = cs
-            self.fc_cond = None
-
+        if cs is not None:
+            self.cs = cs # size of the condition vector
+            if cs_red < cs:
+                self.cs_red = cs_red
+                self.fc_cond = nn.Linear(self.cs, cs_red)
+            else:
+                self.cs_red = cs
+                self.fc_cond = None
         if self.vid:
             self.vs = hs + max_n  # vertex state size = hidden state + vid
         else:
@@ -563,12 +563,20 @@ class DVAE(nn.Module):
         # 0. encoding-related
         self.grue_forward = nn.GRUCell(nvt, hs)  # encoder GRU
         self.grue_backward = nn.GRUCell(nvt, hs)  # backward encoder GRU
-        self.fc1 = nn.Linear(self.gs + self.cs_red, nz)  # latent mean
-        self.fc2 = nn.Linear(self.gs + self.cs_red, nz)  # latent logvar
-            
+        
+        if cs is not None:
+            self.fc1 = nn.Linear(self.gs + self.cs_red, nz)  # latent mean
+            self.fc2 = nn.Linear(self.gs + self.cs_red, nz)  # latent logvar
+        else:
+            self.fc1 = nn.Linear(self.gs, nz)  # latent mean
+            self.fc2 = nn.Linear(self.gs, nz)  # latent logvar
         # 1. decoding-related
         self.grud = nn.GRUCell(nvt, hs)  # decoder GRU
-        self.fc3 = nn.Linear(nz + self.cs_red, hs)  # from latent z to initial hidden state h0
+        
+        if cs is not None:
+            self.fc3 = nn.Linear(nz + self.cs_red, hs)  # from latent z to initial hidden state h0
+        else:
+            self.fc3 = nn.Linear(nz, hs)  # from latent z to initial hidden state h0
         self.add_vertex = nn.Sequential(
                 nn.Linear(hs, hs * 2),
                 nn.ReLU(),
@@ -576,7 +584,7 @@ class DVAE(nn.Module):
                 )  # which type of new vertex to add f(h0, hg)
         self.add_edge = nn.Sequential(
                 nn.Linear(hs * 2, hs * 4), 
-                nn.ReLU(), 
+                nn.ReLU(),
                 nn.Linear(hs * 4, 1)
                 )  # whether to add edge between v_i and v_new, f(hvi, hnew)
 
