@@ -223,7 +223,7 @@ def load_EQ_graphs(name, rand_seed=0, cond=False):
             g_train[i] = (g_train[i][0], g_train[i][1], y_cond_train[i])
         for i in range(len(g_test)):
             g_test[i] = (g_test[i][0], g_test[i][1], y_cond_test[i])
-
+    print('PRINTING mean and std', y_cond_mean, y_cond_std)
     return g_train, g_test, graph_args
 
 
@@ -497,7 +497,7 @@ def decode_from_latent_space(
     decoded_arcs = []  # a list of lists of igraphs
     pbar = tqdm(range(decode_attempts))
     for i in pbar:
-        if y_cond:
+        if y_cond is not None:
             current_decoded_arcs = model.decode(latent_points, y=y_cond)
         else:
             current_decoded_arcs = model.decode(latent_points)
