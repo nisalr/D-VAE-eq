@@ -3,21 +3,21 @@
 #SBATCH --account="punim0512"
 
 # The name of the job:
-#SBATCH --job-name="dvae-eq"
+#SBATCH --job-name="test-dvae-eq"
 
 # Partition for the job:
-##SBATCH --partition deeplearn
-##SBATCH --qos gpgpudeeplearn 
+#SBATCH --partition deeplearn
+#SBATCH --qos gpgpudeeplearn 
 ##SBATCH --constraint=[dlg1|dlg2|dlg3]
-#SBATCH --partition=feit-gpu-a100
-#SBATCH --qos=feit
+##SBATCH --partition=feit-gpu-a100
+##SBATCH --qos=feit
 
 # Number of GPUs requested per node:
 #SBATCH --gres=gpu:1
 
 # Maximum number of tasks/CPU cores used by the job:
-#SBATCH --ntasks=16
-#SBATCH --cpus-per-task=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
 #SBATCH --mem=16G
 
 # The maximum running time of the job in days-hours:mins:sec
@@ -29,9 +29,10 @@
 
 source /usr/local/module/spartan_new.sh
 module load anaconda3/2021.11
+module load gcc/9.2.0
 eval "$(conda shell.bash hook)"
 conda activate dvae_2
 #Run program
 cd ..
 echo 'running program'
-python train.py --data-name eq_structures_7_w_vals --data-type EQ --save-interval 25 --save-appendix _DVAE_EQ_83K_w_vals_200epoch --epochs 300 --lr 1e-4 --model DVAE --bidirectional --nz 56 --batch-size 32 --nvt 5 --cond --only-test --continue-from 300
+python train.py --data-name eq_structures_2 --data-type EQ --save-interval 25 --save-appendix _DVAE_EQ_20K_100epoch --epochs 100 --lr 1e-4 --model DVAE --bidirectional --nz 56 --batch-size 32 --nvt 5 --only-test --continue-from 100
