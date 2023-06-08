@@ -74,7 +74,7 @@ parser.add_argument('--bidirectional', action='store_true', default=False,
                     help='whether to use bidirectional encoding')
 parser.add_argument('--cond', action='store_true', default=False,
                     help='condition DVAE on dataset')
-parser.add_argument('--cond-size', type=int, default=9,
+parser.add_argument('--cond-size', type=int, default=None,
                     help='size of the dataset embedding vector')
 
 args = parser.parse_args()
@@ -144,7 +144,7 @@ if data_type == 'ENAS':
     eva = Eval_NN()  # build the network acc evaluater
                      # defined in ../software/enas/src/cifar10/evaluation.py
 elif data_type == 'EQ':
-    eva = Eval_EQ(sr_dataset_path='sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), embed_mode='nesymres')
+    eva = Eval_EQ(sr_dataset_path='sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), embed_mode='simple')
     print('SR evaluation on dataset {}'.format(dataset_num))
 
 data = loadmat(data_dir + '{}_latent_epoch{}.mat'.format(data_name, checkpoint))  # load train/test data
@@ -187,7 +187,8 @@ for rand_idx in range(1,bo_seed_count + 1):
             hs=hs, 
             nz=nz, 
             bidirectional=bidir,
-            cs=cond_size
+            cs=cond_size,
+            cs_red=10
             )
     if args.predictor:
         predictor = nn.Sequential(
@@ -348,7 +349,13 @@ for rand_idx in range(1,bo_seed_count + 1):
         batch = 3000
         for i in range(0, grid_inputs.shape[0], batch):
             batch_grid_inputs = grid_inputs[i:i+batch, :]
-            valid_arcs_grid += decode_from_latent_space(batch_grid_inputs, model, 100, max_n, False, data_type) 
+            if is_cond:
+                y_cond_single = eva.get_dcond()
+                y_cond = torch.cuda.FloatTensor(
+                            np.broadcast_to(y_cond_single, shape=(batch_grid_inputs.shape[0], y_cond_single.shape[0])))
+                valid_arcs_grid += decode_from_latent_space(batch_grid_inputs, model, 100, max_n, False, data_type, y_cond=y_cond)
+            else:
+                valid_arcs_grid += decode_from_latent_space(batch_grid_inputs, model, 100, max_n, False, data_type) 
         print("Evaluating 2D grid points")
         print("Total points: " + str(grid_inputs.shape[0]))
         grid_scores = []
