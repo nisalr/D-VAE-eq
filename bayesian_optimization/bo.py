@@ -144,7 +144,8 @@ if data_type == 'ENAS':
     eva = Eval_NN()  # build the network acc evaluater
                      # defined in ../software/enas/src/cifar10/evaluation.py
 elif data_type == 'EQ':
-    eva = Eval_EQ(sr_dataset_path='sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), embed_mode='nesymres')
+    eva = Eval_EQ(sr_dataset_path='sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), embed_mode='nesymres',
+                  res_path=data_dir)
     print('SR evaluation on dataset {}'.format(dataset_num))
 
 data = loadmat(data_dir + '{}_latent_epoch{}.mat'.format(data_name, checkpoint))  # load train/test data

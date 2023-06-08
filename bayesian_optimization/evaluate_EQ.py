@@ -14,18 +14,28 @@ from functools import partial
 import torch
 import json
 import omegaconf
+import pickle
 
 class Eval_EQ(object):
-    def __init__(self, sr_dataset_path, embed_mode='simple'):
+    def __init__(self, sr_dataset_path, embed_mode='simple', res_path=None):
         df = pd.read_csv(sr_dataset_path)
         if embed_mode == 'simple':
+            with open(res_path + '/ycond_mean.pkl', 'rb') as f:
+                ycond_mean = pickle.load(f)
+            with open(res_path + '/ycond_std.pkl', 'rb') as f:
+                ycond_std = pickle.load(f)
             sym_eq = parse_expr(df['eq'].iloc[0])
             sym_func = sympy.lambdify(['x_1', 'x_2'], sym_eq)
             x1_vals = np.array([1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0])
             x2_vals = np.array([1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0])
             y_vals = np.nan_to_num(sym_func(x1_vals, x2_vals))
+            y_vals = (y_vals - ycond_mean) / ycond_std
             self.d_cond = y_vals
         elif embed_mode == 'nesymres':
+            with open(res_path + '/ycond_mean.pkl', 'rb') as f:
+                ycond_mean = pickle.load(f)
+            with open(res_path + '/ycond_std.pkl', 'rb') as f:
+                ycond_std = pickle.load(f)
             ## Load equation configuration and architecture configuration
             with open('src/nesymres/eq_setting.json', 'r') as json_file:
               eq_setting = json.load(json_file)
@@ -62,6 +72,7 @@ class Eval_EQ(object):
             x_vals = np.expand_dims(df[['x_1', 'x_2', 'x_3']].values, 0)
             y_vals = np.expand_dims(df['y'].values, 0)
             self.d_cond = embed_func(x_vals, y_vals).reshape(-1).detach().cpu().numpy()
+            self.d_cond = (self.d_cond - ycond_mean) / ycond_std
         self.sr_dataset = df
 
     def eval(self, input_string):

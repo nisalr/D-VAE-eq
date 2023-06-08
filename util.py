@@ -224,9 +224,9 @@ def load_EQ_graphs(name, rand_seed=0, cond=False, res_path=None):
         for i in range(len(g_test)):
             g_test[i] = (g_test[i][0], g_test[i][1], y_cond_test[i])
         print('PRINTING and saving mean and std', y_cond_mean, y_cond_std)
-        with open(res_path + '/ycond_mean.pkl', 'rb') as f:
+        with open(res_path + '/ycond_mean.pkl', 'wb') as f:
             pickle.dump(y_cond_mean, f)
-        with open(res_path + '/ycond_std.pkl', 'rb') as f:
+        with open(res_path + '/ycond_std.pkl', 'wb') as f:
             pickle.dump(y_cond_std, f)
     return g_train, g_test, graph_args
 
