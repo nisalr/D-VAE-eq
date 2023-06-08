@@ -448,6 +448,7 @@ def extract_latent(data):
     for i, sample in enumerate(tqdm(data)):
         if is_cond:
             g, y, y_cond = sample
+            y_cond_batch.append(y_cond)
         else:
             g, y = sample
         if args.model.startswith('SVAE'):
@@ -457,7 +458,6 @@ def extract_latent(data):
             # otherwise original igraphs will save the H states and consume more GPU memory
             g_ = g.copy()  
         g_batch.append(g_)
-        y_cond_batch.append(y_cond)
         if len(g_batch) == args.infer_batch_size or i == len(data) - 1:
             g_batch = model._collate_fn(g_batch)
             if is_cond:
