@@ -182,7 +182,7 @@ def decode_EQ_to_igraph(prefix, operand_list, operator_dict):
     return g, vertex_count
 
 
-def load_EQ_graphs(name, rand_seed=0, cond=False):
+def load_EQ_graphs(name, rand_seed=0, cond=False, res_path=None):
     g_list = []
     max_n = 0
     with open('data/%s.txt' % name, 'r') as f:
@@ -223,7 +223,11 @@ def load_EQ_graphs(name, rand_seed=0, cond=False):
             g_train[i] = (g_train[i][0], g_train[i][1], y_cond_train[i])
         for i in range(len(g_test)):
             g_test[i] = (g_test[i][0], g_test[i][1], y_cond_test[i])
-    print('PRINTING mean and std', y_cond_mean, y_cond_std)
+        print('PRINTING and saving mean and std', y_cond_mean, y_cond_std)
+        with open(res_path + '/ycond_mean.pkl', 'wb') as f:
+            pickle.dump(y_cond_mean, f)
+        with open(res_path + '/ycond_std.pkl', 'wb') as f:
+            pickle.dump(y_cond_std, f)
     return g_train, g_test, graph_args
 
 
