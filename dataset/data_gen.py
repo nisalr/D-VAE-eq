@@ -48,6 +48,8 @@ from src.nesymres.dclasses import FitParams, NNEquation, BFGSParams
 from functools import partial
 import torch
 import json
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.linear_model import LinearRegression
 
 CLEAR_SYMPY_CACHE_FREQ = 10000
 
@@ -755,28 +757,7 @@ class Generator(object):
         vertex_count += 1
         return g, vertex_count
 
-
-if __name__=="__main__":
-    params = {
-        "max_len": 12,
-        "operators": "add:2,mul:2,ln:1,sin:1,cos:1",
-        "max_ops": 10,
-        "rewrite_functions": "",
-        "variables": ["x_1", "x_2"],
-        "eos_index": 1,
-        "pad_index": 0
-    }
-    dataset_file = 'data/eq_structures_13_nesym.txt'
-    params = GeneratorDetails(**params)
-    gen = Generator(params)
-    eq_count = 5000000
-
-    test_dataset_count = 1
-    v_count = []
-    expr_list = []
-    op_dict = {'add': 0, 'mul': 1, 'sin': 2, 'ln': 3, 'cos': 4}
-    operand_list = params.variables
-
+def nesymres_embed_func():
     ## Load equation configuration and architecture configuration
     import omegaconf
     with open('src/nesymres/eq_setting.json', 'r') as json_file:
@@ -810,6 +791,76 @@ if __name__=="__main__":
                            beam_size=cfg.inference.beam_size #This parameter is a tradeoff between accuracy and fitting time
                             )
     embed_func = partial(model.dataset_encoding, cfg_params=params_fit)
+    return embed_func
+
+
+def nesym_res_dcond(sym_expr):
+    embed_func = nesymres_embed_func()
+    x1_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
+    x2_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
+    x3_vals = np.array(([0]*500)).reshape(1, 500, 1)
+    sym_func = lambdify(['x_1', 'x_2'], sym_expr)
+    y_vals = np.nan_to_num(sym_func(x1_vals, x2_vals))
+    X = np.concatenate((x1_vals, x2_vals, x3_vals), axis=2)
+    y_vals = y_vals.reshape(1, 500)
+    x1_l.append(x1_vals)
+    x2_l.append(x2_vals)
+    x3_l.append(x3_vals)
+    y_l.append(y_vals)
+
+    if nesymres_agg_mode == 'all':
+        dcond = embed_func(X, y_vals).reshape(-1)
+    elif nesymres_agg_mode == 'mid':
+        dcond = embed_func(X, y_vals).mean(axis=1).reshape(-1)
+        # print(dcond.shape)
+    elif nesymres_agg_mode == 'low':
+        dcond = embed_func(X, y_vals).mean(axis=2).reshape(-1)
+        # print(dcond.shape)
+    # print(dcond.shape)
+    return dcond
+
+
+def poly_dcond(sym_expr, poly_degree=3):
+    x1_vals = (np.random.rand(500) * 4 + 1).reshape(500, 1)
+    x2_vals = (np.random.rand(500) * 4 + 1).reshape(500, 1)
+    sym_func = lambdify(['x_1', 'x_2'], sym_expr)
+    y_vals = np.nan_to_num(sym_func(x1_vals, x2_vals))
+    x_vals = np.concatenate((x1_vals, x2_vals), axis=1)
+    poly = PolynomialFeatures(degree=poly_degree)
+    x_poly = poly.fit_transform(x_vals)
+    lin_reg = LinearRegression()
+    lin_reg.fit(x_poly, y_vals)
+    return lin_reg.coef_
+
+
+if __name__=="__main__":
+    params = {
+        "max_len": 12,
+        "operators": "add:2,mul:2,ln:1,sin:1,cos:1",
+        "max_ops": 10,
+        "rewrite_functions": "",
+        "variables": ["x_1", "x_2"],
+        "eos_index": 1,
+        "pad_index": 0
+    }
+    dataset_file = 'data/eq_structures_16_poly.txt'
+    params = GeneratorDetails(**params)
+    gen = Generator(params)
+
+    # eq_count = 5000000 # 350K
+    # eq_count = 1000000 # 120K
+    eq_count = 100000 # 20K
+    # eq_count = 10
+
+    dcond_mode = 'poly' # nesymres, poly, yval
+    nesymres_agg_mode = 'low' #all - 5120, mid - 512, low - 10
+    test_dataset_count = 1
+    v_count = []
+    expr_list = []
+    op_dict = {'add': 0, 'mul': 1, 'sin': 2, 'ln': 3, 'cos': 4}
+    operand_list = params.variables
+
+
 
     for i in tqdm(range(eq_count)):
         try:
@@ -843,19 +894,10 @@ if __name__=="__main__":
         for expr in tqdm(expr_list):
             infix_expr = gen.prefix_to_infix(ast.literal_eval(expr), coefficients=gen.coefficients, variables=var)
             sympy_expr = parse_expr(infix_expr)
-            x1_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
-            x2_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
-            x3_vals = np.array(([0]*500)).reshape(1, 500, 1)
-            sym_func = lambdify(['x_1', 'x_2'], sympy_expr)
-            y_vals = np.nan_to_num(sym_func(x1_vals, x2_vals))
-            X = np.concatenate((x1_vals, x2_vals, x3_vals), axis=2)
-            y_vals = y_vals.reshape(1, 500)
-            x1_l.append(x1_vals)
-            x2_l.append(x2_vals)
-            x3_l.append(x3_vals)
-            y_l.append(y_vals)
-            dcond = embed_func(X, y_vals).reshape(-1)
-            print(dcond.shape)
+            if dcond_mode == 'nesymres':
+                dcond = nesym_res_dcond(sympy_expr)
+            elif dcond_mode == 'poly':
+                dcond = poly_dcond(sympy_expr)
             f.write(expr + ',' + str(list(dcond.tolist())))
             f.write('\n')
 
