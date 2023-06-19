@@ -98,6 +98,13 @@ random.seed(args.seed)
 print(args)
 is_cond = args.cond
 cond_size = args.cond_size
+pred_cond_size = cond_size
+if args.predictor:
+    model_cond_size = None
+    is_model_cond = False
+else:
+    model_cond_size = cond_size
+    is_model_cond = True
 
 '''Prepare data'''
 args.file_dir = os.path.dirname(os.path.realpath('__file__'))
@@ -170,13 +177,13 @@ model = eval(args.model)(
         hs=args.hs, 
         nz=args.nz, 
         bidirectional=args.bidirectional,
-        cs=cond_size
+        cs=model_cond_size
         )
 if args.predictor:
     predictor = nn.Sequential(
             nn.Linear(args.nz, args.hs), 
             nn.Tanh(), 
-            nn.Linear(args.hs, 1)
+            nn.Linear(args.hs, pred_cond_size)
             )
     model.predictor = predictor
     model.mseloss = nn.MSELoss(reduction='sum')
@@ -249,7 +256,7 @@ def train(epoch):
                 pbar.set_description('Epoch: %d, loss: %0.4f' % (epoch, loss.item()/len(g_batch)))
                 recon, kld = 0, 0
             else:
-                if is_cond:
+                if is_model_cond:
                     y_cond_batch = torch.cuda.FloatTensor(y_cond_batch)
                     mu, logvar = model.encode(g_batch, y=y_cond_batch)
                     loss, recon, kld = model.loss(mu, logvar, g_batch, y=y_cond_batch)
@@ -259,7 +266,7 @@ def train(epoch):
                 if args.predictor:
                     y_batch = torch.FloatTensor(y_batch).unsqueeze(1).to(device)
                     y_pred = model.predictor(mu)
-                    pred = model.mseloss(y_pred, y_batch)
+                    pred = model.mseloss(y_pred, y_cond_batch)
                     loss += pred
                     pbar.set_description('Epoch: %d, loss: %0.4f, recon: %0.4f, kld: %0.4f, pred: %0.4f'\
                             % (epoch, loss.item()/len(g_batch), recon.item()/len(g_batch), 
@@ -334,7 +341,7 @@ def test():
         y_batch.append(y)
         if len(g_batch) == args.infer_batch_size or i == len(test_data) - 1:
             g = model._collate_fn(g_batch)
-            if is_cond:
+            if is_model_cond:
                 y_cond_batch = torch.cuda.FloatTensor(y_cond_batch)
                 mu, logvar = model.encode(g, y=y_cond_batch)
                 _, nll, _ = model.loss(mu, logvar, g, y=y_cond_batch)
@@ -354,7 +361,7 @@ def test():
             for _ in range(encode_times):
                 z = model.reparameterize(mu, logvar)
                 for _ in range(decode_times):
-                    if is_cond:
+                    if is_model_cond:
                         g_recon = model.decode(z, y=y_cond_batch)
                     else:
                         g_recon = model.decode(z)
@@ -407,7 +414,7 @@ def prior_validity(scale_to_train_range=False):
             if scale_to_train_range:
                 z = z * z_std + z_mean  # move to train's latent range
             for j in range(decode_times):
-                if is_cond:
+                if is_model_cond:
                     g_batch = model.decode(z, y=y_cond_batch)
                 else:
                     g_batch = model.decode(z)
@@ -447,7 +454,7 @@ def extract_latent(data):
     g_batch = []
     y_cond_batch = []
     for i, sample in enumerate(tqdm(data)):
-        if is_cond:
+        if is_model_cond:
             g, y, y_cond = sample
             y_cond_batch.append(y_cond)
         else:
@@ -461,7 +468,7 @@ def extract_latent(data):
         g_batch.append(g_)
         if len(g_batch) == args.infer_batch_size or i == len(data) - 1:
             g_batch = model._collate_fn(g_batch)
-            if is_cond:
+            if is_model_cond:
                 mu, _ = model.encode(g_batch, y=torch.cuda.FloatTensor(y_cond_batch))
             else:
                 mu, _ = model.encode(g_batch)
