@@ -17,7 +17,7 @@ import omegaconf
 import pickle
 
 class Eval_EQ(object):
-    def __init__(self, sr_dataset_path, embed_mode='simple', res_path=None):
+    def __init__(self, sr_dataset_path, embed_mode=None, res_path=None):
         df = pd.read_csv(sr_dataset_path)
         if embed_mode == 'simple':
             with open(res_path + '/ycond_mean.pkl', 'rb') as f:
