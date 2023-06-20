@@ -144,8 +144,11 @@ if data_type == 'ENAS':
     eva = Eval_NN()  # build the network acc evaluater
                      # defined in ../software/enas/src/cifar10/evaluation.py
 elif data_type == 'EQ':
-    eva = Eval_EQ(sr_dataset_path='sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), embed_mode='nesymres',
-                  res_path=data_dir)
+    if is_cond:
+        eva = Eval_EQ(sr_dataset_path='sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), embed_mode='simple',
+                      res_path=data_dir)
+    else:
+        eva = Eval_EQ(sr_dataset_path='sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), embed_mode=None)
     print('SR evaluation on dataset {}'.format(dataset_num))
 
 data = loadmat(data_dir + '{}_latent_epoch{}.mat'.format(data_name, checkpoint))  # load train/test data
@@ -189,7 +192,7 @@ for rand_idx in range(1,bo_seed_count + 1):
             nz=nz, 
             bidirectional=bidir,
             cs=cond_size,
-            cs_red=10
+            cs_red=40
             )
     if args.predictor:
         predictor = nn.Sequential(
@@ -229,7 +232,7 @@ for rand_idx in range(1,bo_seed_count + 1):
             valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts, max_n, False, data_type)
         print("Evaluating random points")
         random_scores = []
-        max_random_score = -1e3
+        max_random_score = 0
         for i in range(len(valid_arcs_random)):
             arc = valid_arcs_random[ i ]
             print(arc)
@@ -240,7 +243,8 @@ for rand_idx in range(1,bo_seed_count + 1):
             else:
                 score = None
             random_scores.append(score)
-            print(i)
+            #print(i)
+        print(random_scores)
         # replace None scores with the worst score in y_train
         random_scores = [x if x is not None else max_random_score for x in random_scores]
         save_object(random_scores, "{}scores{}.dat".format(save_dir, -1))
@@ -261,13 +265,13 @@ for rand_idx in range(1,bo_seed_count + 1):
     mean_y_train, std_y_train = np.mean(y_train), np.std(y_train)
     print('Mean, std of y_train is ', mean_y_train, std_y_train)
     y_train = (y_train - mean_y_train) / std_y_train
-    X_test = data['Z_test']
-    y_test = -data['Y_test'].reshape((-1,1))
-    y_test = (y_test - mean_y_train) / std_y_train
-    best_train_score = min(y_train)
-    save_object((mean_y_train, std_y_train), "{}mean_std_y_train.dat".format(save_dir))
+    #X_test = data['Z_test']
+    #y_test = -data['Y_test'].reshape((-1,1))
+    #y_test = (y_test - mean_y_train) / std_y_train
+    #best_train_score = min(y_train)
+    #save_object((mean_y_train, std_y_train), "{}mean_std_y_train.dat".format(save_dir))
 
-    print("Best train score is: ", best_train_score)
+    #print("Best train score is: ", best_train_score)
 
 
     if random_as_test:
@@ -296,17 +300,19 @@ for rand_idx in range(1,bo_seed_count + 1):
 
             random_scores.append(score)
             print(i)
-        X_test2 = random_inputs.cpu().numpy()
-        y_test2 = np.array(random_scores).reshape((-1, 1))
-        save_object((X_test2, y_test2), save_dir+'random_X_y.dat')
+        random_scores = [x if x is not None else max_random_score for x in random_scores]
+        X_test = random_inputs.cpu().numpy()
+        y_test = np.array(random_scores).reshape((-1, 1))
+        y_test = (y_test - mean_y_train) / std_y_train
+        save_object((X_test, y_test), save_dir+'random_X_y.dat')
         scipy.io.savemat(save_dir+'random_X_y.mat', 
                          mdict={
-                             'X_random': X_test2, 
-                             'y_random': y_test2, 
+                             'X_random': X_test, 
+                             'y_random': y_test, 
                              }
                          )
         print("Average pairwise distance between train points = {}".format(np.mean(pdist(X_train))))
-        print("Average pairwise distance between test points = {}".format(np.mean(pdist(X_test2))))
+        print("Average pairwise distance between test points = {}".format(np.mean(pdist(X_test))))
 
 
     if vis_2d:
@@ -411,7 +417,9 @@ for rand_idx in range(1,bo_seed_count + 1):
         os.remove(save_dir + 'best_random_scores.txt')
 
     while iteration < BO_rounds:
-
+        print('BO iteration starting', iteration)
+        print(X_train.shape, y_train.shape)
+        print(X_train, y_train)
         if args.predictor:
             pred = model.predictor(torch.FloatTensor(X_test).cuda())
             pred = pred.detach().cpu().numpy()
@@ -432,7 +440,8 @@ for rand_idx in range(1,bo_seed_count + 1):
         print('Test RMSE: ', error)
         print('Test ll: ', testll)
         print('text pearson 1', pred.shape, y_test.shape)
-        pearson = float(pearsonr(pred, y_test)[0])
+        print(type(pred), type(y_test))
+        pearson = float(pearsonr(pred[:, 0], y_test[:, 0])[0])
         print('Pearson r: ', pearson)
         with open(save_dir + 'Test_RMSE_ll.txt', 'a') as test_file:
             test_file.write('Test RMSE: {:.4f}, ll: {:.4f}, Pearson r: {:.4f}\n'.format(error, testll, pearson))
@@ -453,17 +462,17 @@ for rand_idx in range(1,bo_seed_count + 1):
 
         if random_as_test:
             if args.predictor:
-                pred = model.predictor(torch.FloatTensor(X_test2).cuda())
+                pred = model.predictor(torch.FloatTensor(X_test).cuda())
                 pred = pred.detach().cpu().numpy()
                 pred = (-pred - mean_y_train) / std_y_train
                 uncert = np.zeros_like(pred)
             else:
-                pred, uncert = sgp.predict(X_test2, 0 * X_test2)
-            error = np.sqrt(np.mean((pred - y_test2)**2))
-            testll = np.mean(sps.norm.logpdf(pred - y_test2, scale = np.sqrt(uncert)))
+                pred, uncert = sgp.predict(X_test, 0 * X_test)
+            error = np.sqrt(np.mean((pred - y_test)**2))
+            testll = np.mean(sps.norm.logpdf(pred - y_test, scale = np.sqrt(uncert)))
             print('Random Test RMSE: ', error)
             print('Random Test ll: ', testll)
-            print(pred.shape, y_test2.shape)
+            print(pred.shape, y_test.shape)
             pearson = 0 #float(pearsonr(pred, y_test2)[0])
             print('Pearson r: ', pearson)
             with open(save_dir + 'Random_Test_RMSE_ll.txt', 'a') as test_file:
@@ -506,7 +515,7 @@ for rand_idx in range(1,bo_seed_count + 1):
 
         else:
             next_inputs = sgp.batched_greedy_ei(batch_size, np.min(X_train, 0), np.max(X_train, 0), np.mean(X_train, 0), np.std(X_train, 0), sample=sample_dist)
-
+        print('next inputs', next_inputs)
         if is_cond:
             y_cond_single = eva.get_dcond()
             y_cond = torch.cuda.FloatTensor(
@@ -586,7 +595,7 @@ for rand_idx in range(1,bo_seed_count + 1):
         print("Current iteration {}'s best score: {}".format(iteration, - best_score * std_y_train - mean_y_train))
         if random_baseline:
             print("Current iteration {}'s best random score: {}".format(iteration, - best_random_score * std_y_train - mean_y_train))
-        print("Best train score is: ", -best_train_score * std_y_train - mean_y_train)
+        #print("Best train score is: ", -best_train_score * std_y_train - mean_y_train)
         if best_arc is not None:
             print("Best architecture: ", best_arc)
             with open(save_dir + 'best_arc_scores.txt', 'a') as score_file:
