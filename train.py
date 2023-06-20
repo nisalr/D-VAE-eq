@@ -266,6 +266,7 @@ def train(epoch):
                 if args.predictor:
                     y_batch = torch.FloatTensor(y_batch).unsqueeze(1).to(device)
                     y_pred = model.predictor(mu)
+                    y_cond_batch = torch.cuda.FloatTensor(y_cond_batch)
                     pred = model.mseloss(y_pred, y_cond_batch)
                     loss += pred
                     pbar.set_description('Epoch: %d, loss: %0.4f, recon: %0.4f, kld: %0.4f, pred: %0.4f'\
@@ -454,7 +455,7 @@ def extract_latent(data):
     g_batch = []
     y_cond_batch = []
     for i, sample in enumerate(tqdm(data)):
-        if is_model_cond:
+        if is_cond:
             g, y, y_cond = sample
             y_cond_batch.append(y_cond)
         else:
