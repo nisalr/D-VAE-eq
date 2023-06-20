@@ -826,11 +826,13 @@ def poly_dcond(sym_expr, poly_degree=3):
     sym_func = lambdify(['x_1', 'x_2'], sym_expr)
     y_vals = np.nan_to_num(sym_func(x1_vals, x2_vals))
     x_vals = np.concatenate((x1_vals, x2_vals), axis=1)
-    poly = PolynomialFeatures(degree=poly_degree)
+    poly = PolynomialFeatures(degree=poly_degree, include_bias=False)
     x_poly = poly.fit_transform(x_vals)
     lin_reg = LinearRegression()
     lin_reg.fit(x_poly, y_vals)
-    return lin_reg.coef_
+    coeff_list = np.insert(lin_reg.coef_, 0, [lin_reg.intercept_]).reshape(-1)
+    coeff_list = np.round(coeff_list, 4)
+    return coeff_list
 
 
 if __name__=="__main__":
