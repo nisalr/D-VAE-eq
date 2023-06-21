@@ -132,8 +132,8 @@ random_as_test = args.random_as_test
 lr = 0.0001  # the learning rate to train the SGP model
 max_iter = 100  # how many iterations to optimize the SGP each time
 decode_attempts = 5
-gp_points = 50
-train_points = 100
+gp_points = 500
+train_points = 1000
 test_points = 50
 bo_seed_count = 10
 
@@ -198,7 +198,7 @@ for rand_idx in range(1,bo_seed_count + 1):
         predictor = nn.Sequential(
                 nn.Linear(args.nz, args.hs), 
                 nn.Tanh(), 
-                nn.Linear(args.hs, 1)
+                nn.Linear(args.hs, cond_size)
                 )
         model.predictor = predictor
     model.cuda()
@@ -244,7 +244,7 @@ for rand_idx in range(1,bo_seed_count + 1):
                 score = None
             random_scores.append(score)
             #print(i)
-        print(random_scores)
+        # print(random_scores)
         # replace None scores with the worst score in y_train
         random_scores = [x if x is not None else max_random_score for x in random_scores]
         save_object(random_scores, "{}scores{}.dat".format(save_dir, -1))
@@ -252,7 +252,7 @@ for rand_idx in range(1,bo_seed_count + 1):
 
         X_train = random_inputs.cpu().numpy()
         y_train = np.array(random_scores).reshape((-1, 1))
-        print('y train', y_train)
+        # print('y train', y_train)
         save_object((X_train, y_train), save_dir+'train_random_X_y.dat')
         scipy.io.savemat(save_dir+'train_random_X_y.mat', 
                          mdict={
@@ -296,10 +296,10 @@ for rand_idx in range(1,bo_seed_count + 1):
                 score = -eva.eval(arc)
                 score = (score - mean_y_train) / std_y_train
             else:
-                score = max(y_train)[ 0 ]
+                score = None
 
             random_scores.append(score)
-            print(i)
+            # print(i)
         random_scores = [x if x is not None else max_random_score for x in random_scores]
         X_test = random_inputs.cpu().numpy()
         y_test = np.array(random_scores).reshape((-1, 1))
@@ -418,8 +418,8 @@ for rand_idx in range(1,bo_seed_count + 1):
 
     while iteration < BO_rounds:
         print('BO iteration starting', iteration)
-        print(X_train.shape, y_train.shape)
-        print(X_train, y_train)
+        # print(X_train.shape, y_train.shape)
+        # print(X_train, y_train)
         if args.predictor:
             pred = model.predictor(torch.FloatTensor(X_test).cuda())
             pred = pred.detach().cpu().numpy()
@@ -433,8 +433,8 @@ for rand_idx in range(1,bo_seed_count + 1):
                 y_test, minibatch_size = 2 * M, max_iterations = max_iter, learning_rate = lr)
             pred, uncert = sgp.predict(X_test, 0 * X_test)
 
-        print("predictions: ", pred.reshape(-1))
-        print("real values: ", y_test.reshape(-1))
+        # print("predictions: ", pred.reshape(-1))
+        # print("real values: ", y_test.reshape(-1))
         error = np.sqrt(np.mean((pred - y_test)**2))
         testll = np.mean(sps.norm.logpdf(pred - y_test, scale = np.sqrt(uncert)))
         print('Test RMSE: ', error)
@@ -548,7 +548,7 @@ for rand_idx in range(1,bo_seed_count + 1):
         scores = []
         for i in range(len(valid_arcs_final)):
             arc = valid_arcs_final[ i ]
-            print(arc)
+            # print(arc)
             if arc is not None:
                 score = -eva.eval(arc)
                 score = (score - mean_y_train) / std_y_train
@@ -558,7 +558,7 @@ for rand_idx in range(1,bo_seed_count + 1):
                 best_score = score
                 best_arc = arc
             scores.append(score)
-            print(i)
+            # print(i)
 
         print("Iteration {}'s selected arcs' scores:".format(iteration))
         print(scores, np.mean(scores))
@@ -579,7 +579,7 @@ for rand_idx in range(1,bo_seed_count + 1):
                     best_random_score = score
                     best_random_arc = arc
                 random_scores.append(score)
-                print(i)
+                # print(i)
 
             print("Iteration {}'s selected arcs' scores:".format(iteration))
             print(scores, np.mean(scores))
