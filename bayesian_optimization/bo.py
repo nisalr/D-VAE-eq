@@ -129,7 +129,7 @@ random_as_train = args.random_as_train
 random_as_test = args.random_as_test
 
 # other BO hyperparameters
-lr = 0.0001  # the learning rate to train the SGP model
+lr = 0.0005  # the learning rate to train the SGP model
 max_iter = 100  # how many iterations to optimize the SGP each time
 decode_attempts = 5
 gp_points = 500
@@ -225,7 +225,7 @@ for rand_idx in range(1,bo_seed_count + 1):
             y_cond_single = eva.get_dcond()
             y_cond = torch.cuda.FloatTensor(
                 np.broadcast_to(y_cond_single, shape=(random_inputs.shape[0], y_cond_single.shape[0])))
-            print(y_cond)
+            # print(y_cond)
             valid_arcs_random = decode_from_latent_space(random_inputs, model, decode_attempts, max_n, False, data_type,
                                                          y_cond=y_cond)
         else:
@@ -235,7 +235,7 @@ for rand_idx in range(1,bo_seed_count + 1):
         max_random_score = 0
         for i in range(len(valid_arcs_random)):
             arc = valid_arcs_random[ i ]
-            print(arc)
+            # print(arc)
             if arc is not None:
                 score = -eva.eval(arc)
                 if score > max_random_score:
@@ -294,7 +294,7 @@ for rand_idx in range(1,bo_seed_count + 1):
             arc = valid_arcs_random[ i ] 
             if arc is not None:
                 score = -eva.eval(arc)
-                score = (score - mean_y_train) / std_y_train
+                # score = (score - mean_y_train) / std_y_train
             else:
                 score = None
 
