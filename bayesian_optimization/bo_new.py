@@ -95,47 +95,68 @@ max_n = 12
 data_type = 'EQ'
 hs, nz = args.hs, args.nz
 optimizer = args.optimizer
-bo_seed_count = 10
+seed_count = 30
 
 
-def evaluate_latent_point(nz, eva, x_in=None, **latent_x):
-    if x_in is None:
-       latent_x_l = []
-       for i in range(nz):
-           latent_x_l.append(latent_x['x' + str(i).zfill(2)])
-       latent_x_arr = np.array(latent_x_l).reshape((1, -1))
-    else:
-       latent_x_arr = np.array(x_in).reshape((1, -1))
-    if is_cond:
-        y_cond_single = eva.get_dcond()
-        y_cond = torch.cuda.FloatTensor(
-            np.broadcast_to(y_cond_single, shape=(latent_x_arr.shape[0], y_cond_single.shape[0])))
-        valid_arcs = decode_from_latent_space(torch.FloatTensor(latent_x_arr).cuda(), model,
-                                              decode_attempts, max_n, False, data_type, y_cond=y_cond)
-    else:
-        valid_arcs = decode_from_latent_space(torch.FloatTensor(latent_x_arr).cuda(), model,
-                                              decode_attempts, max_n, False, data_type)
+class EvalLatent:
+    def __init__(self, nz, eva):
+        self.best_score = 0
+        self.best_eq = None
+        self.nz = nz
+        self.eva = eva
+        self.num_probes = 0
 
-    cur_scores = []
-    for i in range(len(valid_arcs)):
-        arc = valid_arcs[i]
-        # print(arc)
-        if arc is not None:
-            cur_score = eva.eval(arc)
+    def get_best_eq(self):
+        return self.best_eq, self.best_score
+
+    def get_probe_count(self):
+        return self.num_probes
+
+    def evaluate_latent_point(self, x_in=None, **latent_x):
+        if x_in is None:
+           latent_x_l = []
+           for i in range(self.nz):
+               latent_x_l.append(latent_x['x' + str(i).zfill(2)])
+           latent_x_arr = np.array(latent_x_l).reshape((1, -1))
         else:
-            cur_score = 0
-        cur_scores.append(cur_score)
+           latent_x_arr = np.array(x_in).reshape((1, -1))
+        if is_cond:
+            y_cond_single = self.eva.get_dcond()
+            y_cond = torch.cuda.FloatTensor(
+                np.broadcast_to(y_cond_single, shape=(latent_x_arr.shape[0], y_cond_single.shape[0])))
+            valid_arcs = decode_from_latent_space(torch.FloatTensor(latent_x_arr).cuda(), model,
+                                                  decode_attempts, max_n, False, data_type, y_cond=y_cond)
+        else:
+            valid_arcs = decode_from_latent_space(torch.FloatTensor(latent_x_arr).cuda(), model,
+                                                  decode_attempts, max_n, False, data_type)
 
-    max_idx = np.array(cur_scores).argmax()
-    max_score = np.array(cur_scores).max()
-    best_arc = valid_arcs[max_idx]
-    if max_score > 0.99:
-        print('best eq ', best_arc)
-        print(max_score)
-    return max_score, best_arc
+        cur_scores = []
+        for i in range(len(valid_arcs)):
+            arc = valid_arcs[i]
+            # print(arc)
+            if arc is not None:
+                cur_score = self.eva.eval(arc)
+            else:
+                cur_score = 0
+            cur_scores.append(cur_score)
+
+        max_idx = np.array(cur_scores).argmax()
+        max_score = np.array(cur_scores).max()
+        best_arc = valid_arcs[max_idx]
+        if max_score > self.best_score:
+            self.best_score = max_score
+            self.best_eq = best_arc
+            print(self.best_score, self.best_eq)
+        if max_score > 0.99:
+            print('best eq ', best_arc)
+            print(max_score)
+        self.num_probes += 1
+        return max_score
 
 
-def dual_anneal(x_train, opt_func):
+def dual_anneal(x_train, nz, eva, max_fun=1000, random_state=42):
+    eval_latent = EvalLatent(nz, eva)
+
     x_mean = x_train.mean(0)
     x_std = x_train.std(0)
     x_upper = x_mean + 2*x_std
@@ -143,58 +164,32 @@ def dual_anneal(x_train, opt_func):
     pbounds = []
     for i in range(len(x_upper)):
         pbounds.append((x_lower[i], x_upper[i]))
-    res = dual_annealing(lambda x: -opt_func(x_in=x), bounds=pbounds,
-                         maxfun=1000, initial_temp=5e4)
-    return res
+    dual_annealing(lambda x: -eval_latent.evaluate_latent_point(x_in=x), bounds=pbounds,
+                   maxfun=max_fun, initial_temp=5e4, seed=random_state, no_local_search=True)
+    return eval_latent.get_best_eq()
 
 
-def bayesian_opt(x_train, opt_func, nz, eva, init_points=100, iterations=200):
-
-    utility = UtilityFunction(kind="ucb", kappa=2.5, xi=0.0)
+def bayesian_opt(x_train, nz, eva, init_points=100, iterations=200, random_state=42):
+    eval_latent = EvalLatent(nz, eva)
 
     # Bounded region of parameter space
     x_mean = x_train.mean(0)
     x_std = x_train.std(0)
-    x_upper = x_mean + 4*x_std
-    x_lower = x_mean - 4*x_std
+    x_upper = x_mean + 3*x_std
+    x_lower = x_mean - 3*x_std
     pbounds = {}
     for i in range(len(x_upper)):
         pbounds['x' + str(i).zfill(2)] = (x_lower[i], x_upper[i])
     print(pbounds)
     optimizer = BayesianOptimization(
-        f=lambda x: opt_func(nz=nz, eva=eva, **x),
+        f=eval_latent.evaluate_latent_point,
         pbounds=pbounds,
-        random_state=1,
+        random_state=random_state
     )
 
-    best_score = 0
-    best_arc = None
+    optimizer.maximize(init_points=init_points, n_iter=iterations)
 
-    lower_bounds = [pbounds[key][0] for key in sorted(pbounds)]
-    upper_bounds = [pbounds[key][1] for key in sorted(pbounds)]
-
-    for i in range(init_points):
-        next_point = np.random.uniform(low=lower_bounds, high=upper_bounds)
-        next_point = dict(zip(sorted(pbounds), next_point))
-        target, arc = opt_func(nz=nz, eva=eva, **next_point)
-        if target > best_score:
-            print(best_score, best_arc)
-            best_score = target
-            best_arc = arc
-            print(i)
-        optimizer.register(params=next_point, target=target)
-
-    for i in range(iterations):
-        next_point = optimizer.suggest(utility)
-        target, arc = opt_func(nz=nz, eva=eva, **next_point)
-        if target > best_score:
-            print(best_score, best_arc)
-            best_score = target
-            best_arc = arc
-            print(i)
-        optimizer.register(params=next_point, target=target)
-
-    return best_arc, best_score
+    return eval_latent.get_best_eq()
 
 # # do BO experiments with 10 random seeds
 # for rand_idx in range(1,bo_seed_count + 1):
@@ -258,7 +253,13 @@ if __name__ == '__main__':
         os.remove(save_dir + 'best_arc_scores.txt')
 
     if optimizer == 'bayes':
-        for bo_seed in range(bo_seed_count):
-            best_arc, best_score = bayesian_opt(X_train, evaluate_latent_point, nz, eva, init_points=50, iterations=250)
+        for seed in range(seed_count):
+            best_arc, best_score = bayesian_opt(X_train, nz, eva, init_points=10, iterations=10, random_state=seed)
             with open(save_dir + 'best_arc_scores.txt', 'a') as score_file:
                 score_file.write('{} , {:.4f}\n'.format(best_arc, best_score))
+    elif optimizer == 'anneal':
+        for seed in range(seed_count):
+            best_arc, best_score = dual_anneal(X_train, nz, eva, max_fun=1000, random_state=seed)
+            with open(save_dir + 'best_arc_scores.txt', 'a') as score_file:
+                score_file.write('{} , {:.4f}\n'.format(best_arc, best_score))
+
