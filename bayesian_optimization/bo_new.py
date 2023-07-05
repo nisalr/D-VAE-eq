@@ -82,6 +82,7 @@ parser.add_argument('--optimizer', default='bayes', help='black box optimizer to
 
 args = parser.parse_args()
 is_cond = args.cond
+cond_size = args.cond_size
 dataset_num = args.dnum
 data_name = args.data_name
 save_appendix = args.save_appendix
@@ -240,7 +241,7 @@ if __name__ == '__main__':
             hs=hs,
             nz=nz,
             bidirectional=True,
-            cs=10,
+            cs=cond_size,
             cs_red=20
             )
 
