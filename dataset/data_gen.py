@@ -794,8 +794,7 @@ def nesymres_embed_func():
     return embed_func
 
 
-def nesym_res_dcond(sym_expr):
-    embed_func = nesymres_embed_func()
+def nesym_res_dcond(sym_expr, embed_func):
     x1_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
     x2_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
     x3_vals = np.array(([0]*500)).reshape(1, 500, 1)
@@ -803,10 +802,10 @@ def nesym_res_dcond(sym_expr):
     y_vals = np.nan_to_num(sym_func(x1_vals, x2_vals))
     X = np.concatenate((x1_vals, x2_vals, x3_vals), axis=2)
     y_vals = y_vals.reshape(1, 500)
-    x1_l.append(x1_vals)
-    x2_l.append(x2_vals)
-    x3_l.append(x3_vals)
-    y_l.append(y_vals)
+    # x1_l.append(x1_vals)
+    # x2_l.append(x2_vals)
+    # x3_l.append(x3_vals)
+    # y_l.append(y_vals)
 
     if nesymres_agg_mode == 'all':
         dcond = embed_func(X, y_vals).reshape(-1)
@@ -845,16 +844,16 @@ if __name__=="__main__":
         "eos_index": 1,
         "pad_index": 0
     }
-    dataset_file = 'data/eq_structures_16_poly.txt'
+    dataset_file = 'data/eq_structures_test_nesym.txt'
     params = GeneratorDetails(**params)
     gen = Generator(params)
 
     # eq_count = 5000000 # 350K
     # eq_count = 1000000 # 120K
-    eq_count = 100000 # 20K
-    # eq_count = 10
+    # eq_count = 100000 # 20K
+    eq_count = 1000
 
-    dcond_mode = 'poly' # nesymres, poly, yval
+    dcond_mode = 'nesymres' # nesymres, poly, yval
     nesymres_agg_mode = 'low' #all - 5120, mid - 512, low - 10
     test_dataset_count = 1
     v_count = []
@@ -884,6 +883,9 @@ if __name__=="__main__":
     print('total count', len(v_count), 'unique count', pd.Series([str(x) for x in expr_list]).nunique())
     expr_list = list(pd.Series([str(x) for x in expr_list]).unique())
 
+    if dcond_mode == 'nesymres':
+        embed_func = nesymres_embed_func()
+
     with open(dataset_file, 'w') as f:
         f.write(str(op_dict))
         f.write('\n')
@@ -897,23 +899,24 @@ if __name__=="__main__":
             infix_expr = gen.prefix_to_infix(ast.literal_eval(expr), coefficients=gen.coefficients, variables=var)
             sympy_expr = parse_expr(infix_expr)
             if dcond_mode == 'nesymres':
-                dcond = nesym_res_dcond(sympy_expr)
+                dcond = nesym_res_dcond(sympy_expr, embed_func)
             elif dcond_mode == 'poly':
-                dcond = poly_dcond(sympy_expr)
+                dcond = poly_dcond(sympy_expr, poly_degree=3)
+            # print(type(dcond), dcond.shape)
             f.write(expr + ',' + str(list(dcond.tolist())))
             f.write('\n')
 
-        # x1_all = np.concatenate(x1_l, axis=0)
-        # x2_all = np.concatenate(x2_l, axis=0)
-        # x3_all = np.concatenate(x3_l, axis=0)
-        # y_all = np.concatenate(y_l, axis=0)
-        # x_all = np.concatenate((x1_all, x2_all, x3_all), axis=2)
-        # print(y_all.shape, x_all.shape)
-        # dcond = embed_func(x_all, y_all)
-        # dcond = dcond.reshape(dcond.shape[0], -1)
-        # for i, dcond_cur in enumerate(dcond):
-        #     f.write(expr_list[i] + ',' + str(list(dcond_cur.tolist())))
-        #     f.write('\n')
+        x1_all = np.concatenate(x1_l, axis=0)
+        x2_all = np.concatenate(x2_l, axis=0)
+        x3_all = np.concatenate(x3_l, axis=0)
+        y_all = np.concatenate(y_l, axis=0)
+        x_all = np.concatenate((x1_all, x2_all, x3_all), axis=2)
+        print(y_all.shape, x_all.shape)
+        dcond = embed_func(x_all, y_all)
+        dcond = dcond.reshape(dcond.shape[0], -1)
+        for i, dcond_cur in enumerate(dcond):
+            f.write(expr_list[i] + ',' + str(list(dcond_cur.tolist())))
+            f.write('\n')
 
     # for dataset_num in range(2,3):
     #     valid_expr = False
