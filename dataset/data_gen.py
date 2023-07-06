@@ -908,19 +908,6 @@ if __name__=="__main__":
             f.write(expr + ',' + str(list(dcond.tolist())))
             f.write('\n')
 
-        x1_all = np.concatenate(x1_l, axis=0)
-        x2_all = np.concatenate(x2_l, axis=0)
-        x3_all = np.concatenate(x3_l, axis=0)
-        y_all = np.concatenate(y_l, axis=0)
-        x_all = np.concatenate((x1_all, x2_all, x3_all), axis=2)
-        print(y_all.shape, x_all.shape)
-        dcond = embed_func(x_all, y_all)
-        dcond = dcond.reshape(dcond.shape[0], -1)
-        for i, dcond_cur in enumerate(dcond):
-            if i >= dataset_count:
-                break
-            f.write(expr_list[i] + ',' + str(list(dcond_cur.tolist())))
-            f.write('\n')
 
     # for dataset_num in range(2,3):
     #     valid_expr = False
