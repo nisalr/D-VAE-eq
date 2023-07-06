@@ -12,3 +12,8 @@ data/eq_structures_10_nesym.txt
 data/eq_structures_11_nesym.txt
 
 data/eq_structures_12_nesym.txt
+data/*.txt
+data/*.tsv
+data/*.csv
+sr_evaluation/*.csv
+sr_evaluation/*.tsv

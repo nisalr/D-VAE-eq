@@ -836,22 +836,24 @@ def poly_dcond(sym_expr, poly_degree=3):
 
 if __name__=="__main__":
     params = {
-        "max_len": 12,
+        "max_len": 24,
         "operators": "add:2,mul:2,ln:1,sin:1,cos:1",
-        "max_ops": 10,
+        "max_ops": 20,
         "rewrite_functions": "",
         "variables": ["x_1", "x_2"],
         "eos_index": 1,
         "pad_index": 0
     }
-    dataset_file = 'data/eq_structures_test_nesym.txt'
+    dataset_file = 'data/eq_structures_20_nesym.txt'
     params = GeneratorDetails(**params)
     gen = Generator(params)
 
     # eq_count = 5000000 # 350K
     # eq_count = 1000000 # 120K
-    # eq_count = 100000 # 20K
-    eq_count = 1000
+    eq_count = 100000 # 20K
+    # eq_count = 1000
+
+    dataset_count = 20000 #actual number of data points needed (after removing duplicates)
 
     dcond_mode = 'nesymres' # nesymres, poly, yval
     nesymres_agg_mode = 'low' #all - 5120, mid - 512, low - 10
@@ -915,6 +917,8 @@ if __name__=="__main__":
         dcond = embed_func(x_all, y_all)
         dcond = dcond.reshape(dcond.shape[0], -1)
         for i, dcond_cur in enumerate(dcond):
+            if i >= dataset_count:
+                break
             f.write(expr_list[i] + ',' + str(list(dcond_cur.tolist())))
             f.write('\n')
 
