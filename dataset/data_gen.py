@@ -897,7 +897,10 @@ if __name__=="__main__":
         x2_l = []
         x3_l = []
         y_l = []
+        row_count = 0
         for expr in tqdm(expr_list):
+            if row_count >= dataset_count:
+                break
             infix_expr = gen.prefix_to_infix(ast.literal_eval(expr), coefficients=gen.coefficients, variables=var)
             sympy_expr = parse_expr(infix_expr)
             if dcond_mode == 'nesymres':
@@ -907,6 +910,7 @@ if __name__=="__main__":
             # print(type(dcond), dcond.shape)
             f.write(expr + ',' + str(list(dcond.tolist())))
             f.write('\n')
+            row_count += 1
 
 
     # for dataset_num in range(2,3):
