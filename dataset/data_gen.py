@@ -24,21 +24,21 @@ from sympy.calculus.util import AccumBounds
 from sympy.core.rules import Transform
 from sympy import sympify, Symbol
 from random import random
-from sympy_utils import (
+from dataset.sympy_utils import (
     remove_root_constant_terms,
     reduce_coefficients,
     reindex_coefficients,
     add_multiplicative_constants,
     add_additive_constants
 )
-from sympy_utils import (
+from dataset.sympy_utils import (
     extract_non_constant_subtree,
     simplify_const_with_coeff,
     clean_degree2_solution,
 )
-from sympy_utils import remove_mul_const, has_inf_nan, has_I, simplify
+from dataset.sympy_utils import remove_mul_const, has_inf_nan, has_I, simplify
 from collections import Counter
-from dclasses import GeneratorDetails
+from dataset.dclasses import GeneratorDetails
 import igraph
 from util import is_valid_EQ, decode_igraph_to_EQ
 from tqdm import tqdm
@@ -670,6 +670,7 @@ class Generator(object):
 
         f = remove_root_constant_terms(f, list(self.variables.values()), 'add')
         f = remove_root_constant_terms(f, list(self.variables.values()), 'mul')
+
         # f = add_multiplicative_constants(f, self.placeholders["cm"], unary_operators=self.una_ops)
         # f = add_additive_constants(f, self.placeholders, unary_operators=self.una_ops)
 
@@ -685,6 +686,7 @@ class Generator(object):
         # print('f expr', f_expr)
         infix = self.prefix_to_infix(f_expr, coefficients=self.coefficients, variables=self.variables)
         f = self.process_equation(infix)
+        # print(f)
         f_prefix = self.sympy_to_prefix(f)
         # skip too long sequences
         if len(f_expr) + 2 > self.max_len:
@@ -705,7 +707,7 @@ class Generator(object):
         variables = set(map(str, sy)) - set(self.placeholders.keys())
         return f_expr, variables
 
-    def decode_EQ_to_igraph(self, prefix, operand_list, operator_dict):
+    def decode_EQ_to_igraph(self, prefix, operand_list, operator_dict, const_prob=0.2):
         postfix = list(reversed(prefix))
         # n = len(postfix)
         g = igraph.Graph(directed=True)
@@ -713,6 +715,9 @@ class Generator(object):
         g.add_vertices(var_count + 1)
         g.vs[0]['type'] = 0  # input node
         vertex_count = 1
+        print(operator_dict)
+        add_const_type = max(operator_dict.values()) + 1
+        mul_const_type = max(operator_dict.values()) + 2
         vertex_op_dict = {}
 
         for var_idx, var_name in enumerate(operand_list):
@@ -724,7 +729,6 @@ class Generator(object):
 
         eq_stack = []
         for item in postfix:
-            # print(eq_stack)
             if item not in operator_dict:
                 eq_stack.append(item)
             else:
@@ -751,6 +755,18 @@ class Generator(object):
                     # print('vcount3', g.vcount(), oper_vertex, vertex_count)
                     g.add_edge(oper_vertex, vertex_count)
                     vertex_count += 1
+                if const_prob > 0:
+                    if np.random.uniform(0, 1) < const_prob:
+                        const_type = np.random.choice([add_const_type, mul_const_type])
+                        oper = eq_stack.pop()
+                        oper_vertex = vertex_op_dict[oper]
+                        g.add_vertices(1)
+                        g.vs[vertex_count]['type'] = const_type + var_count + 2
+                        vertex_op_dict['op' + str(vertex_count)] = vertex_count
+                        eq_stack.append('op' + str(vertex_count))
+                        g.add_edge(oper_vertex, vertex_count)
+                        vertex_count += 1
+
         g.add_vertices(1)
         g.vs[vertex_count]['type'] = 1  # output node
         g.add_edge(vertex_count - 1, vertex_count)
@@ -795,11 +811,24 @@ def nesymres_embed_func():
 
 
 def nesym_res_dcond(sym_expr, embed_func):
+    sym_symbols = list(sym_expr.free_symbols)
+    add_const = [x for x in sym_symbols if 'ca' in str(x)]
+    mul_const = [x for x in sym_symbols if 'cm' in str(x)]
+    print(add_const, mul_const)
     x1_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
     x2_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
     x3_vals = np.array(([0]*500)).reshape(1, 500, 1)
-    sym_func = lambdify(['x_1', 'x_2'], sym_expr)
-    y_vals = np.nan_to_num(sym_func(x1_vals, x2_vals))
+    sym_func = lambdify(['x_1', 'x_2'] + add_const + mul_const, sym_expr)
+
+    in_vals = [x1_vals, x2_vals]
+    for _ in add_const:
+        const_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
+        in_vals.append(const_vals)
+    for _ in mul_const:
+        const_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
+        in_vals.append(const_vals)
+
+    y_vals = np.nan_to_num(sym_func(*in_vals))
     X = np.concatenate((x1_vals, x2_vals, x3_vals), axis=2)
     y_vals = y_vals.reshape(1, 500)
     # x1_l.append(x1_vals)
@@ -835,23 +864,33 @@ def poly_dcond(sym_expr, poly_degree=3):
 
 
 if __name__=="__main__":
+    # params = {
+    #     "max_len": 12,
+    #     "operators": "add:2,mul:2,ln:1,sin:1,cos:1",
+    #     "max_ops": 10,
+    #     "rewrite_functions": "",
+    #     "variables": ["x_1", "x_2"],
+    #     "eos_index": 1,
+    #     "pad_index": 0
+    # }
+
     params = {
-        "max_len": 24,
-        "operators": "add:2,mul:2,ln:1,sin:1,cos:1",
-        "max_ops": 20,
+        "max_len": 20,
+        "operators": "add:10,mul:10,sub:5,div:5,sqrt:4,pow2:4,pow3:2,pow4:1,pow5:1,ln:4,exp:4,sin:4,cos:4,tan:4,asin:2",
+        "max_ops": 5,
         "rewrite_functions": "",
-        "variables": ["x_1", "x_2"],
+        "variables": ["x_1", "x_2", "x_3"],
         "eos_index": 1,
         "pad_index": 0
     }
-    dataset_file = 'data/eq_structures_20_nesym.txt'
+    dataset_file = 'data/eq_structures_20_test.txt'
     params = GeneratorDetails(**params)
     gen = Generator(params)
 
     # eq_count = 5000000 # 350K
     # eq_count = 1000000 # 120K
-    eq_count = 100000 # 20K
-    # eq_count = 1000
+    # eq_count = 100000 # 20K
+    eq_count = 1000
 
     dataset_count = 20000 #actual number of data points needed (after removing duplicates)
 
@@ -860,7 +899,9 @@ if __name__=="__main__":
     test_dataset_count = 1
     v_count = []
     expr_list = []
-    op_dict = {'add': 0, 'mul': 1, 'sin': 2, 'ln': 3, 'cos': 4}
+    # op_dict = {'add': 0, 'mul': 1, 'sin': 2, 'ln': 3, 'cos': 4}
+    op_dict = {'add': 0, 'mul': 1, 'sin': 2, 'ln': 3, 'cos': 4, 'sub': 5, 'div': 6, 'sqrt': 7, 'pow2': 8, 'pow3': 9, 'pow4': 10, 'pow5': 11, 'exp':12, 'tan':13, 'asin':14}
+
     operand_list = params.variables
 
 
@@ -874,12 +915,13 @@ if __name__=="__main__":
         # print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
 
         g, vertex_count = gen.decode_EQ_to_igraph(expr, operand_list, op_dict)
-        # print(decode_igraph_to_EQ(g))
+        expr_w_const = decode_igraph_to_EQ(g)
         # print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
         valid_eq = is_valid_EQ(g)
+        # print(valid_eq)
         if not valid_eq:
             continue
-        expr_list.append(expr)
+        expr_list.append(expr_w_const)
         v_count.append(vertex_count)
     print(max(v_count), len(v_count))
     print('total count', len(v_count), 'unique count', pd.Series([str(x) for x in expr_list]).nunique())
@@ -901,8 +943,9 @@ if __name__=="__main__":
         for expr in tqdm(expr_list):
             if row_count >= dataset_count:
                 break
-            infix_expr = gen.prefix_to_infix(ast.literal_eval(expr), coefficients=gen.coefficients, variables=var)
-            sympy_expr = parse_expr(infix_expr)
+            # infix_expr = gen.prefix_to_infix(ast.literal_eval(expr), coefficients=gen.coefficients, variables=var)
+            sympy_expr = parse_expr(expr)
+            print(sympy_expr)
             if dcond_mode == 'nesymres':
                 dcond = nesym_res_dcond(sympy_expr, embed_func)
             elif dcond_mode == 'poly':

@@ -129,17 +129,18 @@ random_as_train = args.random_as_train
 random_as_test = args.random_as_test
 
 # other BO hyperparameters
-lr = 0.0005  # the learning rate to train the SGP model
+lr = 0.0001  # the learning rate to train the SGP model
 max_iter = 100  # how many iterations to optimize the SGP each time
 decode_attempts = 5
-gp_points = 500
-train_points = 1000
+gp_points = 50
+train_points = 100
 test_points = 50
 bo_seed_count = 10
+print('data dir', data_dir)
 
 # architecture performance evaluator
 if data_type == 'ENAS':
-    sys.path.append('%s/../software/enas/src/cifar10' % os.path.dirname(os.path.realpath(__file__))) 
+    sys.path.append('%s/../software/enas/src/cifar10' % os.path.dirname(os.path.realpath(__file__)))
     from evaluation import *
     eva = Eval_NN()  # build the network acc evaluater
                      # defined in ../software/enas/src/cifar10/evaluation.py
@@ -194,6 +195,8 @@ for rand_idx in range(1,bo_seed_count + 1):
             cs=cond_size,
             cs_red=40
             )
+
+    print('start end', hs, nz, nvt, max_n, graph_args.START_TYPE, graph_args.END_TYPE)
     if args.predictor:
         predictor = nn.Sequential(
                 nn.Linear(args.nz, args.hs), 
@@ -207,6 +210,7 @@ for rand_idx in range(1,bo_seed_count + 1):
     # load the data
     X_train = data['Z_train']
     y_train = -data['Y_train'].reshape((-1,1))
+    print('mean std', X_train.mean(0), X_train.std(0))
     if data_type == 'BN':
         # remove duplicates, otherwise SGP ill-conditioned
         #X_train, unique_idxs = np.unique(X_train, axis=0, return_index=True)

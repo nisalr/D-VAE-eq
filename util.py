@@ -448,20 +448,30 @@ def decode_igraph_to_EQ(g):
         sympy.tanh: "tanh",
 
     }
+
     with open('data/operator_operand_dict.txt') as f:
         operator_dict = eval(f.readline())
+        add_const_type = max(operator_dict.values()) + 1
+        mul_const_type = max(operator_dict.values()) + 2
         inv_op = {v: k for k, v in operator_dict.items()}
+        inv_op[add_const_type] = 'ca'
+        inv_op[mul_const_type] = 'cm'
         inv_sympy = {v: k for k, v in SYMPY_OPERATORS.items()}
+        _ = f.readline()
+        operand_counts = eval(f.readline())
     top_sort = g.topological_sorting()
     sym_list = [None] * g.vcount()
     # print('top sort', top_sort)
+    add_const_num = 0
+    mul_const_num = 0
     for idx in top_sort:
         if g.vs[idx]['type'] == 2:
             sym_list[idx] = sympy.Symbol('x_1')
         elif g.vs[idx]['type'] == 3:
             sym_list[idx] = sympy.Symbol('x_2')
-        elif g.vs[idx]['type'] not in [0, 1]:
+        elif inv_op[g.vs[idx]['type']] not in [0, 1]:
             neighb = g.neighbors(idx, mode='in')
+            print(len(neighb))
             if len(neighb) == 2:
                 op1 = sym_list[neighb[0]]
                 op2 = sym_list[neighb[1]]
@@ -472,7 +482,14 @@ def decode_igraph_to_EQ(g):
                 op1 = sym_list[neighb[0]]
                 vertex_type = g.vs[idx]['type']
                 vertex_op = inv_op[vertex_type - 2 - 2]
-                sym_list[idx] = inv_sympy[vertex_op](op1)
+                if vertex_op == 'cm':
+                    sym_list[idx] = sympy.Symbol('cm' + str(mul_const_num)) * op1
+                    mul_const_num += 1
+                elif vertex_op == 'ca':
+                    sym_list[idx] = sympy.Symbol('ca' + str(add_const_num))  + op1
+                    add_const_num += 1
+                else:
+                    sym_list[idx] = inv_sympy[vertex_op](op1)
 
     return str(sym_list[-2])
 
@@ -728,11 +745,17 @@ def is_valid_ENAS(g, START_TYPE=0, END_TYPE=1):
 def is_valid_EQ(g, START_TYPE=0, END_TYPE=1):
     with open('data/operator_operand_dict.txt') as f:
         operators = eval(f.readline())
+        add_const_type = max(operators.values()) + 1
+        mul_const_type = max(operators.values()) + 2
+        operators['ca'] = add_const_type
+        operators['cm'] = mul_const_type
         num_operators = len(operators.keys())
         in_vars = eval(f.readline())
         var_count = len(in_vars)
         var_types = list(range(2, 2 + var_count))
         op_count = eval(f.readline())
+        op_count['ca'] = 1
+        op_count['cm'] = 1
         binary_types = []
         unary_types = []
         for op in op_count.keys():

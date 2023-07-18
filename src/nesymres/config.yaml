@@ -97,7 +97,7 @@ inference:
   bfgs:
     activated: True
     n_restarts: 10
-    add_coefficients_if_not_existing: False
+    add_coefficients_if_not_existing: True
     normalization_o: False
     idx_remove: True
     normalization_type: MSE

@@ -10,15 +10,34 @@ import sympy
 import time
 from src.nesymres.architectures.model import Model
 from src.nesymres.dclasses import FitParams, NNEquation, BFGSParams
+from src.nesymres.architectures.data import tokenize, de_tokenize
+from src.nesymres.architectures.bfgs import bfgs
+from dataset.data_gen import Generator
+
 from functools import partial
 import torch
 import json
 import omegaconf
 import pickle
 
+from sympy import Symbol, simplify, factor, Float, preorder_traversal, Integer
+
+
+def round_sympy_expr(sym_expr, round_digits=3):
+    for a in preorder_traversal(sym_expr):
+        if isinstance(a, Float):
+            if int(round(a, round_digits)) == round(a, round_digits):
+                sym_expr = sym_expr.subs(a, int(round(a, round_digits)))
+            else:
+                sym_expr = sym_expr.subs(a, round(a, round_digits))
+    return sym_expr
+
+
+
 class Eval_EQ(object):
     def __init__(self, sr_dataset_path, embed_mode=None, res_path=None):
         df = pd.read_csv(sr_dataset_path)
+
         if embed_mode == 'simple':
             with open(res_path + '/ycond_mean.pkl', 'rb') as f:
                 ycond_mean = pickle.load(f)
@@ -48,7 +67,7 @@ class Eval_EQ(object):
                 model.cuda()
                 ## Set up BFGS load rom the hydra config yaml
 
-            bfgs = BFGSParams(
+            bfgs_params = BFGSParams(
                     activated=cfg.inference.bfgs.activated,
                     n_restarts=cfg.inference.bfgs.n_restarts,
                     add_coefficients_if_not_existing=cfg.inference.bfgs.add_coefficients_if_not_existing,
@@ -64,9 +83,10 @@ class Eval_EQ(object):
                                    total_variables=list(eq_setting["total_variables"]),
                                    total_coefficients=list(eq_setting["total_coefficients"]),
                                    rewrite_functions=list(eq_setting["rewrite_functions"]),
-                                   bfgs=bfgs,
+                                   bfgs=bfgs_params,
                                    beam_size=cfg.inference.beam_size #This parameter is a tradeoff between accuracy and fitting time
                                     )
+            self.params_fit = params_fit
             embed_func = partial(model.dataset_encoding, cfg_params=params_fit)
             df['x_3'] = 0
             x_vals = np.expand_dims(df[['x_1', 'x_2', 'x_3']].values, 0)
@@ -75,18 +95,30 @@ class Eval_EQ(object):
             self.d_cond = (self.d_cond - ycond_mean) / ycond_std
         self.sr_dataset = df
 
-    def eval(self, input_string):
+    def eval(self, input_string, samp_count=500):
         '''generates score for a given equation'''
         sym_eq = parse_expr(input_string)
-        sym_func = sympy.lambdify(['x_1', 'x_2'], sym_eq)
-        x1_vals = self.sr_dataset['x_1'].values
-        x2_vals = self.sr_dataset['x_2'].values
-        y_vals = self.sr_dataset['y'].values
-        pred_y_list = sym_func(x1_vals, x2_vals)
+        sampled_df = self.sr_dataset.sample(samp_count)
+        # sym_func = sympy.lambdify(['x_1', 'x_2'], sym_eq)
+        # x1_vals = self.sr_dataset['x_1'].values
+        # x2_vals = self.sr_dataset['x_2'].values
+        # y_vals = self.sr_dataset['y'].values
+        # pred_y_list = sym_func(x1_vals, x2_vals)
+        x_vals = torch.FloatTensor(sampled_df[['x_1', 'x_2', 'x_3']].values).unsqueeze(0)
+        y_vals = torch.FloatTensor(sampled_df[['y']].values).unsqueeze(0)
+
+        prefix_expr = Generator.sympy_to_prefix(sym_eq)
+        token_expr = torch.Tensor(tokenize(prefix_expr, self.params_fit.word2id))
+        print(token_expr)
+        func_best, const_best, mse_loss, fitted_expr = bfgs(token_expr, x_vals, y_vals, self.params_fit)
+        print('printing bfgs results', func_best, const_best, mse_loss, fitted_expr)
         try:
-            return 1/(1 + mean_squared_error(y_vals, pred_y_list)**0.5)
+            score = 1/(1 + mse_loss**0.5)
+            if np.isnan(score):
+                return 0, round_sympy_expr(func_best)
+            return score, round_sympy_expr(func_best)
         except ValueError:
-            return 0
+            return 0, round_sympy_expr(func_best)
 
     def get_dcond(self):
         return self.d_cond

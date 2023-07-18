@@ -97,7 +97,6 @@ hs, nz = args.hs, args.nz
 optimizer = args.optimizer
 seed_count = 30
 
-
 class EvalLatent:
     def __init__(self, nz, eva):
         self.best_score = 0
@@ -131,22 +130,24 @@ class EvalLatent:
                                                   decode_attempts, max_n, False, data_type)
 
         cur_scores = []
+        cur_exprs = []
         for i in range(len(valid_arcs)):
             arc = valid_arcs[i]
             # print(arc)
             if arc is not None:
-                cur_score = self.eva.eval(arc)
+                cur_score, cur_expr = self.eva.eval(arc)
             else:
-                cur_score = 0
+                cur_score, cur_expr = 0, None
             cur_scores.append(cur_score)
+            cur_exprs.append(cur_expr)
 
         max_idx = np.array(cur_scores).argmax()
         max_score = np.array(cur_scores).max()
-        best_arc = valid_arcs[max_idx]
+        best_arc = cur_exprs[max_idx]
         if max_score > self.best_score:
             self.best_score = max_score
             self.best_eq = best_arc
-            print(self.best_score, self.best_eq)
+        print('cur score', self.best_score, self.best_eq)
         if max_score > 0.99:
             print('best eq ', best_arc)
             print(max_score)
@@ -220,11 +221,26 @@ def bayesian_opt(x_train, nz, eva, init_points=100, iterations=200, random_state
 
 
 if __name__ == '__main__':
+    sr_dataset_path = 'sr_evaluation/sr_dataset_{}.csv'.format(dataset_num)
+    # df = pd.read_csv(sr_dataset_path)
+    # df['x_3'] = 0
+    # x_vals = torch.FloatTensor(df[['x_1', 'x_2', 'x_3']].values).unsqueeze(0)
+    # y_vals = torch.FloatTensor(df[['y']].values).unsqueeze(0)
+    #
+    #
+    # with open('src/nesymres/eq_setting.json', 'r') as json_file:
+    #     eq_setting = json.load(json_file)
+    #
+    # cfg = omegaconf.OmegaConf.load("src/nesymres/config.yaml")
+    # cfg.id2word = {int(k): v for k,v in eq_setting["id2word"].items()}
+    #     ## Set up BFGS load rom the hydra config yaml
+
+
     if is_cond:
-        eva = Eval_EQ(sr_dataset_path='sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), embed_mode='nesymres',
+        eva = Eval_EQ(sr_dataset_path=sr_dataset_path, embed_mode='nesymres',
                       res_path=data_dir)
     else:
-        eva = Eval_EQ(sr_dataset_path='sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), embed_mode=None)
+        eva = Eval_EQ(sr_dataset_path=sr_dataset_path, embed_mode=None)
     print('SR evaluation on dataset {}'.format(dataset_num))
 
     # load the decoder
@@ -254,7 +270,7 @@ if __name__ == '__main__':
 
     if optimizer == 'bayes':
         for seed in range(seed_count):
-            best_arc, best_score = bayesian_opt(X_train, nz, eva, init_points=10, iterations=10, random_state=seed)
+            best_arc, best_score = bayesian_opt(X_train, nz, eva, init_points=1, iterations=10, random_state=seed)
             with open(save_dir + 'best_arc_scores.txt', 'a') as score_file:
                 score_file.write('{} , {:.4f}\n'.format(best_arc, best_score))
     elif optimizer == 'anneal':
