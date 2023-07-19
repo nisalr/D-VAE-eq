@@ -656,7 +656,7 @@ class Generator(object):
         # unknown operator
         raise UnknownSymPyOperator(f"Unknown SymPy operator: {expr}")
 
-    def process_equation(self, infix):
+    def process_equation(self, infix, add_constants=False):
         f = self.infix_to_sympy(infix, self.variables, self.rewrite_functions)
 
         symbols = set([str(x) for x in f.free_symbols])
@@ -671,12 +671,13 @@ class Generator(object):
         f = remove_root_constant_terms(f, list(self.variables.values()), 'add')
         f = remove_root_constant_terms(f, list(self.variables.values()), 'mul')
 
-        # f = add_multiplicative_constants(f, self.placeholders["cm"], unary_operators=self.una_ops)
-        # f = add_additive_constants(f, self.placeholders, unary_operators=self.una_ops)
+        if add_constants:
+            f = add_multiplicative_constants(f, self.placeholders["cm"], unary_operators=self.una_ops)
+            # f = add_additive_constants(f, self.placeholders, unary_operators=self.una_ops)
 
         return f
 
-    def generate_equation(self, rng):
+    def generate_equation(self, rng, add_constants=False):
         """
         Generate pairs of (function, primitive).
         Start by generating a random function f, and use SymPy to compute F.
@@ -685,10 +686,11 @@ class Generator(object):
         f_expr = self._generate_expr(nb_ops, rng, max_int=1)
         # print('f expr', f_expr)
         infix = self.prefix_to_infix(f_expr, coefficients=self.coefficients, variables=self.variables)
-        f = self.process_equation(infix)
+        f = self.process_equation(infix, add_constants)
 
         # print(f)
-        f_prefix = self.sympy_to_prefix(f)
+        if add_constants:
+            f_expr = self.sympy_to_prefix(f)
         # skip too long sequences
         if len(f_expr) + 2 > self.max_len:
             raise ValueErrorExpression("Sequence longer than max length")
@@ -708,7 +710,7 @@ class Generator(object):
         variables = set(map(str, sy)) - set(self.placeholders.keys())
         return f_expr, variables
 
-    def decode_EQ_to_igraph(self, prefix, operand_list, operator_dict, const_prob=0):
+    def decode_EQ_to_igraph(self, prefix, operand_list, operator_dict):
         postfix = list(reversed(prefix))
         # n = len(postfix)
         g = igraph.Graph(directed=True)
@@ -729,7 +731,7 @@ class Generator(object):
 
         eq_stack = []
         for item in postfix:
-            if item not in operator_dict:
+            if item in operand_list:
                 eq_stack.append(item)
             else:
                 if self.OPERATORS[item] == 2:
@@ -755,17 +757,6 @@ class Generator(object):
                     # print('vcount3', g.vcount(), oper_vertex, vertex_count)
                     g.add_edge(oper_vertex, vertex_count)
                     vertex_count += 1
-                if const_prob > 0:
-                    if np.random.uniform(0, 1) < const_prob:
-                        const_type = np.random.choice([add_const_type, mul_const_type])
-                        oper = eq_stack.pop()
-                        oper_vertex = vertex_op_dict[oper]
-                        g.add_vertices(1)
-                        g.vs[vertex_count]['type'] = const_type + var_count + 2
-                        vertex_op_dict['op' + str(vertex_count)] = vertex_count
-                        eq_stack.append('op' + str(vertex_count))
-                        g.add_edge(oper_vertex, vertex_count)
-                        vertex_count += 1
 
         g.add_vertices(1)
         g.vs[vertex_count]['type'] = 1  # output node
@@ -883,16 +874,19 @@ if __name__=="__main__":
         "eos_index": 1,
         "pad_index": 0
     }
-    dataset_file = 'data/eq_structures_23_nesym.txt'
+    dataset_file = 'data/eq_structures_test.txt'
     params = GeneratorDetails(**params)
     gen = Generator(params)
 
     # eq_count = 5000000 # 350K
-    eq_count = 800000 # 120K
+    # eq_count = 800000 # 120K
     # eq_count = 100000  # 20K
-    # eq_count = 1000
+    eq_count = 1000
 
     dataset_count = 120000 #actual number of data points needed (after removing duplicates)
+    add_const = True
+    const_bounds = (1, 5)
+    const_range = const_bounds[1] - const_bounds[0]
 
     dcond_mode = 'nesymres' # nesymres, poly, yval
     nesymres_agg_mode = 'low' #all - 5120, mid - 512, low - 10
@@ -909,13 +903,18 @@ if __name__=="__main__":
 
     for i in tqdm(range(eq_count)):
         try:
-            expr, var = gen.generate_equation(rng=np.random)
-            # print('expr', expr)
+            expr, var = gen.generate_equation(rng=np.random, add_constants=add_const)
         except (ValueErrorExpression, NotCorrectIndependentVariables, UnknownSymPyOperator) as e:
             continue
         if len(expr) <= 1:
             continue
 
+        if add_const:
+            for i in range(len(expr)):
+                if expr[i] in ('ca', 'cm'):
+                    expr[i] = random() * const_range + const_bounds[0]
+
+        print('expr', expr)
         g, vertex_count = gen.decode_EQ_to_igraph(expr, operand_list, op_dict)
         expr_w_const = decode_igraph_to_EQ(g)
         if 'zoo' in expr_w_const or expr_w_const in ['0', '1']:
