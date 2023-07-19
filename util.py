@@ -431,6 +431,9 @@ def decode_igraph_to_EQ(g):
         sympy.exp: "exp",
         sympy.log: "ln",
         sympy.Abs: 'abs',
+        sympy.sqrt: 'sqrt',
+        lambda x, y: x / y: 'div',
+        lambda x, y: x - y: 'sub',
 
         # Trigonometric Functions
         sympy.sin: "sin",
@@ -448,48 +451,35 @@ def decode_igraph_to_EQ(g):
         sympy.tanh: "tanh",
 
     }
-
     with open('data/operator_operand_dict.txt') as f:
         operator_dict = eval(f.readline())
-        add_const_type = max(operator_dict.values()) + 1
-        mul_const_type = max(operator_dict.values()) + 2
         inv_op = {v: k for k, v in operator_dict.items()}
-        inv_op[add_const_type] = 'ca'
-        inv_op[mul_const_type] = 'cm'
         inv_sympy = {v: k for k, v in SYMPY_OPERATORS.items()}
-        _ = f.readline()
-        operand_counts = eval(f.readline())
+        operand_list = eval(f.readline())
+        var_count = len(operand_list)
     top_sort = g.topological_sorting()
     sym_list = [None] * g.vcount()
     # print('top sort', top_sort)
-    add_const_num = 0
-    mul_const_num = 0
     for idx in top_sort:
         if g.vs[idx]['type'] == 2:
             sym_list[idx] = sympy.Symbol('x_1')
         elif g.vs[idx]['type'] == 3:
             sym_list[idx] = sympy.Symbol('x_2')
-        elif inv_op[g.vs[idx]['type']] not in [0, 1]:
+        elif g.vs[idx]['type'] == 4:
+            sym_list[idx] = sympy.Symbol('x_3')
+        elif g.vs[idx]['type'] not in [0, 1]:
             neighb = g.neighbors(idx, mode='in')
-            print(len(neighb))
             if len(neighb) == 2:
                 op1 = sym_list[neighb[0]]
                 op2 = sym_list[neighb[1]]
                 vertex_type = g.vs[idx]['type']
-                vertex_op = inv_op[vertex_type - 2 - 2]
+                vertex_op = inv_op[vertex_type - 2 - var_count]
                 sym_list[idx] = inv_sympy[vertex_op](op1, op2)
             else:
                 op1 = sym_list[neighb[0]]
                 vertex_type = g.vs[idx]['type']
-                vertex_op = inv_op[vertex_type - 2 - 2]
-                if vertex_op == 'cm':
-                    sym_list[idx] = sympy.Symbol('cm' + str(mul_const_num)) * op1
-                    mul_const_num += 1
-                elif vertex_op == 'ca':
-                    sym_list[idx] = sympy.Symbol('ca' + str(add_const_num))  + op1
-                    add_const_num += 1
-                else:
-                    sym_list[idx] = inv_sympy[vertex_op](op1)
+                vertex_op = inv_op[vertex_type - 2 - var_count]
+                sym_list[idx] = inv_sympy[vertex_op](op1)
 
     return str(sym_list[-2])
 
@@ -507,7 +497,7 @@ def adjstr_to_BN(row):
 
 
 def decode_from_latent_space(
-        latent_points, model, decode_attempts=500, n_nodes='variable', return_igraph=False, 
+        latent_points, model, decode_attempts=500, n_nodes='variable', return_igraph=False,
         data_type='ENAS', y_cond=None):
     # decode points from the VAE model's latent space multiple attempts
     # and return the most common decoded graphs
@@ -541,7 +531,7 @@ def decode_from_latent_space(
                         if return_igraph:
                             str2igraph[cur] = arc
                         valid_arcs[i].append(cur)
-            elif data_type == 'BN':  
+            elif data_type == 'BN':
                 if is_valid_BN(arc, model.START_TYPE, model.END_TYPE, nvt=model.nvt):
                     cur = decode_igraph_to_BN_adj(arc)  # a flat BN adjacency matrix string
                     if return_igraph:
@@ -610,7 +600,7 @@ def draw_network(g, path, backbone=False):
 
 
 def add_node(graph, node_id, label, shape='box', style='filled'):
-    if label == 0:  
+    if label == 0:
         label = 'input'
         color = 'skyblue'
     elif label == 1:
@@ -662,8 +652,8 @@ def draw_BN(g, path):
 
     if g is None:
         graph.add_node(
-                0, label='invalid', color='black', fillcolor='white', 
-                shape='box', style='filled', 
+                0, label='invalid', color='black', fillcolor='white',
+                shape='box', style='filled',
         )
         graph.layout(prog='dot')
         graph.draw(path)
@@ -745,17 +735,11 @@ def is_valid_ENAS(g, START_TYPE=0, END_TYPE=1):
 def is_valid_EQ(g, START_TYPE=0, END_TYPE=1):
     with open('data/operator_operand_dict.txt') as f:
         operators = eval(f.readline())
-        add_const_type = max(operators.values()) + 1
-        mul_const_type = max(operators.values()) + 2
-        operators['ca'] = add_const_type
-        operators['cm'] = mul_const_type
         num_operators = len(operators.keys())
         in_vars = eval(f.readline())
         var_count = len(in_vars)
         var_types = list(range(2, 2 + var_count))
         op_count = eval(f.readline())
-        op_count['ca'] = 1
-        op_count['cm'] = 1
         binary_types = []
         unary_types = []
         for op in op_count.keys():

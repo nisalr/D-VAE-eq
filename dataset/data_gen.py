@@ -686,6 +686,7 @@ class Generator(object):
         # print('f expr', f_expr)
         infix = self.prefix_to_infix(f_expr, coefficients=self.coefficients, variables=self.variables)
         f = self.process_equation(infix)
+
         # print(f)
         f_prefix = self.sympy_to_prefix(f)
         # skip too long sequences
@@ -707,7 +708,7 @@ class Generator(object):
         variables = set(map(str, sy)) - set(self.placeholders.keys())
         return f_expr, variables
 
-    def decode_EQ_to_igraph(self, prefix, operand_list, operator_dict, const_prob=0.2):
+    def decode_EQ_to_igraph(self, prefix, operand_list, operator_dict, const_prob=0):
         postfix = list(reversed(prefix))
         # n = len(postfix)
         g = igraph.Graph(directed=True)
@@ -715,7 +716,6 @@ class Generator(object):
         g.add_vertices(var_count + 1)
         g.vs[0]['type'] = 0  # input node
         vertex_count = 1
-        print(operator_dict)
         add_const_type = max(operator_dict.values()) + 1
         mul_const_type = max(operator_dict.values()) + 2
         vertex_op_dict = {}
@@ -814,19 +814,19 @@ def nesym_res_dcond(sym_expr, embed_func):
     sym_symbols = list(sym_expr.free_symbols)
     add_const = [x for x in sym_symbols if 'ca' in str(x)]
     mul_const = [x for x in sym_symbols if 'cm' in str(x)]
-    print(add_const, mul_const)
+    # print(add_const, mul_const)
     x1_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
     x2_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
     x3_vals = np.array(([0]*500)).reshape(1, 500, 1)
-    sym_func = lambdify(['x_1', 'x_2'] + add_const + mul_const, sym_expr)
+    sym_func = lambdify(['x_1', 'x_2', 'x_3'], sym_expr)
 
-    in_vals = [x1_vals, x2_vals]
-    for _ in add_const:
-        const_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
-        in_vals.append(const_vals)
-    for _ in mul_const:
-        const_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
-        in_vals.append(const_vals)
+    in_vals = [x1_vals, x2_vals, x3_vals]
+    # for _ in add_const:
+    #     const_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
+    #     in_vals.append(const_vals)
+    # for _ in mul_const:
+    #     const_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
+    #     in_vals.append(const_vals)
 
     y_vals = np.nan_to_num(sym_func(*in_vals))
     X = np.concatenate((x1_vals, x2_vals, x3_vals), axis=2)
@@ -876,7 +876,7 @@ if __name__=="__main__":
 
     params = {
         "max_len": 20,
-        "operators": "add:10,mul:10,sub:5,div:5,sqrt:4,pow2:4,pow3:2,pow4:1,pow5:1,ln:4,exp:4,sin:4,cos:4,tan:4,asin:2",
+        "operators": "add:10,mul:10,sub:5,div:5,sqrt:4,ln:4,exp:4,sin:4,cos:4,tan:4,asin:2",
         "max_ops": 5,
         "rewrite_functions": "",
         "variables": ["x_1", "x_2", "x_3"],
@@ -900,7 +900,8 @@ if __name__=="__main__":
     v_count = []
     expr_list = []
     # op_dict = {'add': 0, 'mul': 1, 'sin': 2, 'ln': 3, 'cos': 4}
-    op_dict = {'add': 0, 'mul': 1, 'sin': 2, 'ln': 3, 'cos': 4, 'sub': 5, 'div': 6, 'sqrt': 7, 'pow2': 8, 'pow3': 9, 'pow4': 10, 'pow5': 11, 'exp':12, 'tan':13, 'asin':14}
+    with open('data/operator_operand_dict.txt') as f:
+        op_dict = eval(f.readline())
 
     operand_list = params.variables
 
@@ -910,7 +911,7 @@ if __name__=="__main__":
         try:
             expr, var = gen.generate_equation(rng=np.random)
             # print('expr', expr)
-        except ValueErrorExpression:
+        except (ValueErrorExpression, NotCorrectIndependentVariables) as e:
             continue
         # print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
 
@@ -945,7 +946,7 @@ if __name__=="__main__":
                 break
             # infix_expr = gen.prefix_to_infix(ast.literal_eval(expr), coefficients=gen.coefficients, variables=var)
             sympy_expr = parse_expr(expr)
-            print(sympy_expr)
+            # print(sympy_expr)
             if dcond_mode == 'nesymres':
                 dcond = nesym_res_dcond(sympy_expr, embed_func)
             elif dcond_mode == 'poly':
