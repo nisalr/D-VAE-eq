@@ -817,12 +817,12 @@ def nesym_res_dcond(sym_expr, embed_func):
     # print(add_const, mul_const)
     x1_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
     x2_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
-    x3_vals = np.array(([0]*500)).reshape(1, 500, 1)
+    x3_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
     sym_func = lambdify(['x_1', 'x_2', 'x_3'], sym_expr)
 
     in_vals = [x1_vals, x2_vals, x3_vals]
     # for _ in add_const:
-    #     const_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
+    #     const_vals = (np.random.rand (500) * 4 + 1).reshape(1, 500, 1)
     #     in_vals.append(const_vals)
     # for _ in mul_const:
     #     const_vals = (np.random.rand(500) * 4 + 1).reshape(1, 500, 1)
@@ -883,16 +883,16 @@ if __name__=="__main__":
         "eos_index": 1,
         "pad_index": 0
     }
-    dataset_file = 'data/eq_structures_20_test.txt'
+    dataset_file = 'data/eq_structures_23_nesym.txt'
     params = GeneratorDetails(**params)
     gen = Generator(params)
 
     # eq_count = 5000000 # 350K
-    # eq_count = 1000000 # 120K
-    # eq_count = 100000 # 20K
-    eq_count = 1000
+    eq_count = 800000 # 120K
+    # eq_count = 100000  # 20K
+    # eq_count = 1000
 
-    dataset_count = 20000 #actual number of data points needed (after removing duplicates)
+    dataset_count = 120000 #actual number of data points needed (after removing duplicates)
 
     dcond_mode = 'nesymres' # nesymres, poly, yval
     nesymres_agg_mode = 'low' #all - 5120, mid - 512, low - 10
@@ -911,18 +911,21 @@ if __name__=="__main__":
         try:
             expr, var = gen.generate_equation(rng=np.random)
             # print('expr', expr)
-        except (ValueErrorExpression, NotCorrectIndependentVariables) as e:
+        except (ValueErrorExpression, NotCorrectIndependentVariables, UnknownSymPyOperator) as e:
             continue
-        # print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
+        if len(expr) <= 1:
+            continue
 
         g, vertex_count = gen.decode_EQ_to_igraph(expr, operand_list, op_dict)
         expr_w_const = decode_igraph_to_EQ(g)
+        if 'zoo' in expr_w_const or expr_w_const in ['0', '1']:
+            continue
         # print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
         valid_eq = is_valid_EQ(g)
         # print(valid_eq)
         if not valid_eq:
             continue
-        expr_list.append(expr_w_const)
+        expr_list.append(expr)
         v_count.append(vertex_count)
     print(max(v_count), len(v_count))
     print('total count', len(v_count), 'unique count', pd.Series([str(x) for x in expr_list]).nunique())
@@ -944,8 +947,8 @@ if __name__=="__main__":
         for expr in tqdm(expr_list):
             if row_count >= dataset_count:
                 break
-            # infix_expr = gen.prefix_to_infix(ast.literal_eval(expr), coefficients=gen.coefficients, variables=var)
-            sympy_expr = parse_expr(expr)
+            infix_expr = gen.prefix_to_infix(ast.literal_eval(expr), coefficients=gen.coefficients, variables=var)
+            sympy_expr = parse_expr(infix_expr)
             # print(sympy_expr)
             if dcond_mode == 'nesymres':
                 dcond = nesym_res_dcond(sympy_expr, embed_func)
