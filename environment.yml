@@ -1,4 +1,4 @@
-name: /data/projects/punim0512/nisal_envs/dvae_2
+name: dvae
 channels:
   - conda-forge
   - defaults

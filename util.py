@@ -23,6 +23,68 @@ import math
 cmd_opt = argparse.ArgumentParser()
 graph_args, _ = cmd_opt.parse_known_args()
 
+SYMPY_OPERATORS = {
+        # Elementary functions
+        sympy.Add: "add",
+        sympy.Mul: "mul",
+        sympy.Pow: "pow",
+        sympy.exp: "exp",
+        sympy.log: "ln",
+        sympy.Abs: 'abs',
+        sympy.sqrt: 'sqrt',
+        lambda x, y: x / y: 'div',
+        lambda x, y: x - y: 'sub',
+
+        # Trigonometric Functions
+        sympy.sin: "sin",
+        sympy.cos: "cos",
+        sympy.tan: "tan",
+
+        # Trigonometric Inverses
+        sympy.asin: "asin",
+        sympy.acos: "acos",
+        sympy.atan: "atan",
+
+        # Hyperbolic Functions
+        sympy.sinh: "sinh",
+        sympy.cosh: "cosh",
+        sympy.tanh: "tanh",
+
+    }
+
+OPERATORS = {
+        # Elementary functions
+        "add": 2,
+        "sub": 2,
+        "mul": 2,
+        "div": 2,
+        "pow": 2,
+        "inv": 1,
+        "pow2": 1,
+        "pow3": 1,
+        "pow4": 1,
+        "pow5": 1,
+        "sqrt": 1,
+        "exp": 1,
+        "ln": 1,
+        "abs": 1,
+
+        # Trigonometric Functions
+        "sin": 1,
+        "cos": 1,
+        "tan": 1,
+
+        # Trigonometric Inverses
+        "asin": 1,
+        "acos": 1,
+        "atan": 1,
+
+        # Hyperbolic Functions
+        "sinh": 1,
+        "cosh": 1,
+        "tanh": 1,
+        "coth": 1,
+    }
 
 '''load and save objects'''
 def save_object(obj, filename):
@@ -95,92 +157,81 @@ def load_ENAS_graphs(name, n_types=6, fmt='igraph', rand_seed=0, with_y=True, bu
     random.Random(rand_seed).shuffle(g_list)
     return g_list[:int(ng*0.9)], g_list[int(ng*0.9):], graph_args
 
+
 def decode_EQ_to_igraph(prefix, operand_list, operator_dict):
-    OPERATORS = {
-        # Elementary functions
-        "add": 2,
-        "sub": 2,
-        "mul": 2,
-        "div": 2,
-        "pow": 2,
-        "inv": 1,
-        "pow2": 1,
-        "pow3": 1,
-        "pow4": 1,
-        "pow5": 1,
-        "sqrt": 1,
-        "exp": 1,
-        "ln": 1,
-        "abs": 1,
+        inv_sympy = {v: k for k, v in SYMPY_OPERATORS.items()}
+        postfix = list(reversed(prefix))
+        # n = len(postfix)
+        g = igraph.Graph(directed=True)
+        var_count = len(operand_list)
+        g.add_vertices(var_count + 1)
+        g.vs[0]['type'] = 0  # input node
+        vertex_count = 1
+        add_const_type = max(operator_dict.values()) + 1
+        mul_const_type = max(operator_dict.values()) + 2
+        vertex_op_dict = {}
 
-        # Trigonometric Functions
-        "sin": 1,
-        "cos": 1,
-        "tan": 1,
+        for var_idx, var_name in enumerate(operand_list):
+            g.vs[var_idx + 1]['type'] = var_idx + 2#input variable
+            vertex_op_dict[var_name] = var_idx + 1
+            g.add_edge(0, var_idx + 1)
+            vertex_count += 1
+        # print('vcount1', g.vcount())
 
-        # Trigonometric Inverses
-        "asin": 1,
-        "acos": 1,
-        "atan": 1,
-
-        # Hyperbolic Functions
-        "sinh": 1,
-        "cosh": 1,
-        "tanh": 1,
-        "coth": 1,
-    }
-
-    postfix = list(reversed(prefix))
-    # n = len(postfix)
-    g = igraph.Graph(directed=True)
-    var_count = len(operand_list)
-    g.add_vertices(var_count + 1)
-    g.vs[0]['type'] = 0  # input node
-    vertex_count = 1
-    vertex_op_dict = {}
-
-    for var_idx, var_name in enumerate(operand_list):
-        g.vs[var_idx + 1]['type'] = var_idx + 2#input variable
-        vertex_op_dict[var_name] = var_idx + 1
-        g.add_edge(0, var_idx + 1)
-        vertex_count += 1
-    # print('vcount1', g.vcount())
-
-    eq_stack = []
-    for item in postfix:
-        # print(eq_stack)
-        if item not in operator_dict:
-            eq_stack.append(item)
-        else:
-            if OPERATORS[item] == 2:
-                oper1 = eq_stack.pop()
-                op1_vertex = vertex_op_dict[oper1]
-                oper2 = eq_stack.pop()
-                op2_vertex = vertex_op_dict[oper2]
-                g.add_vertices(1)
-                g.vs[vertex_count]['type'] = operator_dict[item] + var_count + 2
-                vertex_op_dict['op' + str(vertex_count)] = vertex_count
-                eq_stack.append('op' + str(vertex_count))
-                # print('vcount2', g.vcount(), op1_vertex, op2_vertex, vertex_count)
-                g.add_edge(op1_vertex, vertex_count)
-                g.add_edge(op2_vertex, vertex_count)
-                vertex_count += 1
+        eq_stack = []
+        for item in postfix:
+            print(item, eq_stack)
+            if item in operand_list:
+                eq_stack.append(sympy.Symbol(item))
+            elif item not in operator_dict:
+                eq_stack.append(float(item))
             else:
-                oper = eq_stack.pop()
-                oper_vertex = vertex_op_dict[oper]
-                g.add_vertices(1)
-                g.vs[vertex_count]['type'] = operator_dict[item] + var_count + 2
-                vertex_op_dict['op' + str(vertex_count)] = vertex_count
-                eq_stack.append('op' + str(vertex_count))
-                # print('vcount3', g.vcount(), oper_vertex, vertex_count)
-                g.add_edge(oper_vertex, vertex_count)
-                vertex_count += 1
-    g.add_vertices(1)
-    g.vs[vertex_count]['type'] = 1  # output node
-    g.add_edge(vertex_count - 1, vertex_count)
-    vertex_count += 1
-    return g, vertex_count
+                if OPERATORS[item] == 2:
+                    oper1 = eq_stack.pop()
+                    oper2 = eq_stack.pop()
 
+                    if isinstance(oper1, float) or isinstance(oper2, float):
+                        result = inv_sympy[item](oper1, oper2)
+                        eq_stack.append(result)
+                        continue
+                    else:
+                        op1_sym = list(oper1.free_symbols)[0]
+                        op1_vertex = vertex_op_dict.get(op1_sym)
+                        op1_coeff = oper1.coeff(op1_sym)
+                        op2_sym = list(oper2.free_symbols)[1]
+                        op2_vertex = vertex_op_dict.get(op2_sym)
+                        op2_coeff = oper2.coeff(op2_sym)
+
+                        g.add_vertices(1)
+                        g.vs[vertex_count]['type'] = operator_dict[item] + var_count + 2
+                        vertex_op_dict['op' + str(vertex_count)] = vertex_count
+                        eq_stack.append(sympy.Symbol('op' + str(vertex_count)))
+                        print('vcount2', g.vcount(), op1_vertex, op2_vertex, vertex_count)
+                        g.add_edge(op1_vertex, vertex_count, weight=op1_coeff)
+                        g.add_edge(op2_vertex, vertex_count, weight=op2_coeff)
+                        vertex_count += 1
+
+
+                else:
+                    oper = eq_stack.pop()
+
+                    oper_sym = list(oper.free_symbols)[0]
+                    oper_vertex = vertex_op_dict.get(oper_sym)
+                    op1_coeff = oper.coeff(oper_sym)
+
+                    g.add_vertices(1)
+                    g.vs[vertex_count]['type'] = operator_dict[item] + var_count + 2
+                    vertex_op_dict['op' + str(vertex_count)] = vertex_count
+                    eq_stack.append(sympy.Symbol('op' + str(vertex_count)))
+                    # print('vcount3', g.vcount(), oper_vertex, vertex_count)
+                    g.add_edge(oper_vertex, vertex_count, weight=op1_coeff)
+                    vertex_count += 1
+
+        g.add_vertices(1)
+        g.vs[vertex_count]['type'] = 1  # output node
+        g.add_edge(vertex_count - 1, vertex_count)
+        vertex_count += 1
+        return g, vertex_count
 
 def load_EQ_graphs(name, rand_seed=0, cond=False, res_path=None):
     g_list = []
@@ -423,34 +474,7 @@ def decode_igraph_to_BN_adj(g):
 
 
 def decode_igraph_to_EQ(g):
-    SYMPY_OPERATORS = {
-        # Elementary functions
-        sympy.Add: "add",
-        sympy.Mul: "mul",
-        sympy.Pow: "pow",
-        sympy.exp: "exp",
-        sympy.log: "ln",
-        sympy.Abs: 'abs',
-        sympy.sqrt: 'sqrt',
-        lambda x, y: x / y: 'div',
-        lambda x, y: x - y: 'sub',
 
-        # Trigonometric Functions
-        sympy.sin: "sin",
-        sympy.cos: "cos",
-        sympy.tan: "tan",
-
-        # Trigonometric Inverses
-        sympy.asin: "asin",
-        sympy.acos: "acos",
-        sympy.atan: "atan",
-
-        # Hyperbolic Functions
-        sympy.sinh: "sinh",
-        sympy.cosh: "cosh",
-        sympy.tanh: "tanh",
-
-    }
     with open('data/operator_operand_dict.txt') as f:
         operator_dict = eval(f.readline())
         inv_op = {v: k for k, v in operator_dict.items()}

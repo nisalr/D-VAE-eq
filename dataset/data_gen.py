@@ -40,7 +40,7 @@ from dataset.sympy_utils import remove_mul_const, has_inf_nan, has_I, simplify
 from collections import Counter
 from dataset.dclasses import GeneratorDetails
 import igraph
-from util import is_valid_EQ, decode_igraph_to_EQ
+from util import is_valid_EQ, decode_igraph_to_EQ, decode_EQ_to_igraph
 from tqdm import tqdm
 
 from src.nesymres.architectures.model import Model
@@ -684,7 +684,7 @@ class Generator(object):
         """
         nb_ops = rng.randint(3, self.max_ops + 1)
         f_expr = self._generate_expr(nb_ops, rng, max_int=1)
-        # print('f expr', f_expr)
+        print('f expr', f_expr)
         infix = self.prefix_to_infix(f_expr, coefficients=self.coefficients, variables=self.variables)
         f = self.process_equation(infix, add_constants)
 
@@ -709,60 +709,6 @@ class Generator(object):
         sy = f.free_symbols
         variables = set(map(str, sy)) - set(self.placeholders.keys())
         return f_expr, variables
-
-    def decode_EQ_to_igraph(self, prefix, operand_list, operator_dict):
-        postfix = list(reversed(prefix))
-        # n = len(postfix)
-        g = igraph.Graph(directed=True)
-        var_count = len(operand_list)
-        g.add_vertices(var_count + 1)
-        g.vs[0]['type'] = 0  # input node
-        vertex_count = 1
-        add_const_type = max(operator_dict.values()) + 1
-        mul_const_type = max(operator_dict.values()) + 2
-        vertex_op_dict = {}
-
-        for var_idx, var_name in enumerate(operand_list):
-            g.vs[var_idx + 1]['type'] = var_idx + 2#input variable
-            vertex_op_dict[var_name] = var_idx + 1
-            g.add_edge(0, var_idx + 1)
-            vertex_count += 1
-        # print('vcount1', g.vcount())
-
-        eq_stack = []
-        for item in postfix:
-            if item in operand_list:
-                eq_stack.append(item)
-            else:
-                if self.OPERATORS[item] == 2:
-                    oper1 = eq_stack.pop()
-                    op1_vertex = vertex_op_dict[oper1]
-                    oper2 = eq_stack.pop()
-                    op2_vertex = vertex_op_dict[oper2]
-                    g.add_vertices(1)
-                    g.vs[vertex_count]['type'] = operator_dict[item] + var_count + 2
-                    vertex_op_dict['op' + str(vertex_count)] = vertex_count
-                    eq_stack.append('op' + str(vertex_count))
-                    # print('vcount2', g.vcount(), op1_vertex, op2_vertex, vertex_count)
-                    g.add_edge(op1_vertex, vertex_count)
-                    g.add_edge(op2_vertex, vertex_count)
-                    vertex_count += 1
-                else:
-                    oper = eq_stack.pop()
-                    oper_vertex = vertex_op_dict[oper]
-                    g.add_vertices(1)
-                    g.vs[vertex_count]['type'] = operator_dict[item] + var_count + 2
-                    vertex_op_dict['op' + str(vertex_count)] = vertex_count
-                    eq_stack.append('op' + str(vertex_count))
-                    # print('vcount3', g.vcount(), oper_vertex, vertex_count)
-                    g.add_edge(oper_vertex, vertex_count)
-                    vertex_count += 1
-
-        g.add_vertices(1)
-        g.vs[vertex_count]['type'] = 1  # output node
-        g.add_edge(vertex_count - 1, vertex_count)
-        vertex_count += 1
-        return g, vertex_count
 
 def nesymres_embed_func():
     ## Load equation configuration and architecture configuration
@@ -915,11 +861,12 @@ if __name__=="__main__":
                     expr[i] = random() * const_range + const_bounds[0]
 
         print('expr', expr)
-        g, vertex_count = gen.decode_EQ_to_igraph(expr, operand_list, op_dict)
+        print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
+
+        g, vertex_count = decode_EQ_to_igraph(expr, operand_list, op_dict)
         expr_w_const = decode_igraph_to_EQ(g)
         if 'zoo' in expr_w_const or expr_w_const in ['0', '1']:
             continue
-        # print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
         valid_eq = is_valid_EQ(g)
         # print(valid_eq)
         if not valid_eq:
