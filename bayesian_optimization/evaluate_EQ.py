@@ -95,30 +95,20 @@ class Eval_EQ(object):
             self.d_cond = (self.d_cond - ycond_mean) / ycond_std
         self.sr_dataset = df
 
-    def eval(self, input_string, samp_count=500):
+
+
+    def eval(self, input_string):
         '''generates score for a given equation'''
         sym_eq = parse_expr(input_string)
-        sampled_df = self.sr_dataset.sample(samp_count)
-        # sym_func = sympy.lambdify(['x_1', 'x_2'], sym_eq)
-        # x1_vals = self.sr_dataset['x_1'].values
-        # x2_vals = self.sr_dataset['x_2'].values
-        # y_vals = self.sr_dataset['y'].values
-        # pred_y_list = sym_func(x1_vals, x2_vals)
-        x_vals = torch.FloatTensor(sampled_df[['x_1', 'x_2', 'x_3']].values).unsqueeze(0)
-        y_vals = torch.FloatTensor(sampled_df[['y']].values).unsqueeze(0)
-
-        prefix_expr = Generator.sympy_to_prefix(sym_eq)
-        token_expr = torch.Tensor(tokenize(prefix_expr, self.params_fit.word2id))
-        print(token_expr)
-        func_best, const_best, mse_loss, fitted_expr = bfgs(token_expr, x_vals, y_vals, self.params_fit)
-        print('printing bfgs results', func_best, const_best, mse_loss, fitted_expr)
+        sym_func = sympy.lambdify(['x_1', 'x_2'], sym_eq)
+        x1_vals = self.sr_dataset['x_1'].values
+        x2_vals = self.sr_dataset['x_2'].values
+        y_vals = self.sr_dataset['y'].values
+        pred_y_list = sym_func(x1_vals, x2_vals)
         try:
-            score = 1/(1 + mse_loss**0.5)
-            if np.isnan(score):
-                return 0, round_sympy_expr(func_best)
-            return score, round_sympy_expr(func_best)
+            return 1/(1 + mean_squared_error(y_vals, pred_y_list)**0.5)
         except ValueError:
-            return 0, round_sympy_expr(func_best)
+            return 0
 
     def get_dcond(self):
         return self.d_cond
