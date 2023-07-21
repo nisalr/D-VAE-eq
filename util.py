@@ -180,7 +180,7 @@ def decode_EQ_to_igraph(prefix, operand_list, operator_dict):
 
         eq_stack = []
         for item in postfix:
-            print(item, eq_stack)
+            # print(item, eq_stack)
             if item in operand_list:
                 eq_stack.append(sympy.Symbol(item))
             elif item not in operator_dict:
@@ -189,16 +189,18 @@ def decode_EQ_to_igraph(prefix, operand_list, operator_dict):
                 if OPERATORS[item] == 2:
                     oper1 = eq_stack.pop()
                     oper2 = eq_stack.pop()
-
+                    # print(type(oper1), type(oper2))
                     if isinstance(oper1, float) or isinstance(oper2, float):
                         result = inv_sympy[item](oper1, oper2)
+                        if isinstance(result, sympy.Expr) and result.is_constant():
+                            result = float(result)
                         eq_stack.append(result)
                         continue
                     else:
-                        op1_sym = list(oper1.free_symbols)[0]
+                        op1_sym = str(list(oper1.free_symbols)[0])
                         op1_vertex = vertex_op_dict.get(op1_sym)
                         op1_coeff = oper1.coeff(op1_sym)
-                        op2_sym = list(oper2.free_symbols)[1]
+                        op2_sym = str(list(oper2.free_symbols)[0])
                         op2_vertex = vertex_op_dict.get(op2_sym)
                         op2_coeff = oper2.coeff(op2_sym)
 
@@ -206,7 +208,7 @@ def decode_EQ_to_igraph(prefix, operand_list, operator_dict):
                         g.vs[vertex_count]['type'] = operator_dict[item] + var_count + 2
                         vertex_op_dict['op' + str(vertex_count)] = vertex_count
                         eq_stack.append(sympy.Symbol('op' + str(vertex_count)))
-                        print('vcount2', g.vcount(), op1_vertex, op2_vertex, vertex_count)
+                        # print('vcount2', g.vcount(), op1_vertex, op2_vertex, vertex_count)
                         g.add_edge(op1_vertex, vertex_count, weight=op1_coeff)
                         g.add_edge(op2_vertex, vertex_count, weight=op2_coeff)
                         vertex_count += 1
@@ -215,7 +217,14 @@ def decode_EQ_to_igraph(prefix, operand_list, operator_dict):
                 else:
                     oper = eq_stack.pop()
 
-                    oper_sym = list(oper.free_symbols)[0]
+                    if isinstance(oper, float):
+                        result = inv_sympy[item](oper)
+                        if isinstance(result, sympy.Expr) and result.is_constant():
+                            result = float(result)
+                        eq_stack.append(result)
+                        continue
+
+                    oper_sym = str(list(oper.free_symbols)[0])
                     oper_vertex = vertex_op_dict.get(oper_sym)
                     op1_coeff = oper.coeff(oper_sym)
 
@@ -226,10 +235,14 @@ def decode_EQ_to_igraph(prefix, operand_list, operator_dict):
                     # print('vcount3', g.vcount(), oper_vertex, vertex_count)
                     g.add_edge(oper_vertex, vertex_count, weight=op1_coeff)
                     vertex_count += 1
-
+        # print(eq_stack)
         g.add_vertices(1)
         g.vs[vertex_count]['type'] = 1  # output node
-        g.add_edge(vertex_count - 1, vertex_count)
+        final_op = eq_stack.pop()
+        final_op_sym = str(list(final_op.free_symbols)[0])
+        final_op_coeff = final_op.coeff(final_op_sym)
+        # print('final coeff', final_op_coeff)
+        g.add_edge(vertex_count - 1, vertex_count, weight=final_op_coeff)
         vertex_count += 1
         return g, vertex_count
 
@@ -496,16 +509,20 @@ def decode_igraph_to_EQ(g):
             if len(neighb) == 2:
                 op1 = sym_list[neighb[0]]
                 op2 = sym_list[neighb[1]]
+                op1_coeff = g.es.select(_between=([neighb[0]], [idx]))[0]['weight']
+                op2_coeff = g.es.select(_between=([neighb[1]], [idx]))[0]['weight']
                 vertex_type = g.vs[idx]['type']
                 vertex_op = inv_op[vertex_type - 2 - var_count]
-                sym_list[idx] = inv_sympy[vertex_op](op1, op2)
+                sym_list[idx] = inv_sympy[vertex_op](op1_coeff*op1, op2_coeff*op2)
             else:
                 op1 = sym_list[neighb[0]]
+                op1_coeff = g.es.select(_between=([neighb[0]], [idx]))[0]['weight']
                 vertex_type = g.vs[idx]['type']
                 vertex_op = inv_op[vertex_type - 2 - var_count]
-                sym_list[idx] = inv_sympy[vertex_op](op1)
+                sym_list[idx] = inv_sympy[vertex_op](op1_coeff*op1)
 
-    return str(sym_list[-2])
+    final_coeff = g.es.select(_between=([g.vcount() - 1], [g.vcount() - 2]))[0]['weight']
+    return str(sym_list[-2] * final_coeff)
 
 
 
@@ -721,7 +738,7 @@ def ratio_same_DAG(G0, G1):
     return res / len(G1)
 
 
-def is_valid_DAG(g, START_TYPE=0, END_TYPE=1):
+def is_valid_DAG(g, START_TYPE=0, END_TYPE=1, var_count=3):
     # Check if the given igraph g is a valid DAG computation graph
     # first need to have no directed cycles
     # second need to have no zero-indegree nodes except input
@@ -738,7 +755,7 @@ def is_valid_DAG(g, START_TYPE=0, END_TYPE=1):
             n_end += 1
         if v.indegree() == 0 and v['type'] != START_TYPE:
             return False
-        if v.outdegree() == 0 and v['type'] != END_TYPE:
+        if v.outdegree() == 0 and v['type'] != END_TYPE and v['type'] not in range(2, 2 + var_count):
             return False
     return res and n_start == 1 and n_end == 1
 

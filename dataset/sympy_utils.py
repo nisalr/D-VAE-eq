@@ -222,7 +222,7 @@ def add_multiplicative_constants(expr, multiplicative_placeholder, unary_operato
     if not expr.args:
         if type(expr) == sp.core.numbers.NegativeOne:
             return expr
-        else:
+        elif len(expr.free_symbols) == 1:
             return multiplicative_placeholder * expr
     for sub_expr in expr.args:
         expr = expr.subs(sub_expr, add_multiplicative_constants(sub_expr, multiplicative_placeholder,

@@ -50,6 +50,7 @@ import torch
 import json
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.linear_model import LinearRegression
+import time
 
 CLEAR_SYMPY_CACHE_FREQ = 10000
 
@@ -684,17 +685,17 @@ class Generator(object):
         """
         nb_ops = rng.randint(3, self.max_ops + 1)
         f_expr = self._generate_expr(nb_ops, rng, max_int=1)
-        print('f expr', f_expr)
+        # print('f expr', f_expr)
         infix = self.prefix_to_infix(f_expr, coefficients=self.coefficients, variables=self.variables)
         f = self.process_equation(infix, add_constants)
 
-        # print(f)
-        if add_constants:
-            f_expr = self.sympy_to_prefix(f)
-        # skip too long sequences
+        #skip too long sequences
         if len(f_expr) + 2 > self.max_len:
             raise ValueErrorExpression("Sequence longer than max length")
             # return None, "Sequence longer than max length"
+
+        if add_constants:
+            f_expr = self.sympy_to_prefix(f)
 
         # skip when the number of operators is too far from expected
         real_nb_ops = sum(1 if op in self.OPERATORS else 0 for op in f_expr)
@@ -813,7 +814,7 @@ if __name__=="__main__":
 
     params = {
         "max_len": 20,
-        "operators": "add:10,mul:10,sub:5,div:5,sqrt:4,ln:4,exp:4,sin:4,cos:4,tan:4,asin:2",
+        "operators": "add:10,mul:10,sub:5,div:5,sqrt:4,ln:4,exp:4,sin:4,cos:4,tan:4,asin:2,pow:1",
         "max_ops": 5,
         "rewrite_functions": "",
         "variables": ["x_1", "x_2", "x_3"],
@@ -849,27 +850,37 @@ if __name__=="__main__":
 
     for i in tqdm(range(eq_count)):
         try:
+            # t1 = time.time()
             expr, var = gen.generate_equation(rng=np.random, add_constants=add_const)
-        except (ValueErrorExpression, NotCorrectIndependentVariables, UnknownSymPyOperator) as e:
+            # t2 = time.time()
+            if add_const:
+                for i in range(len(expr)):
+                    if expr[i] in ('ca', 'cm'):
+                        expr[i] = random() * const_range + const_bounds[0]
+            # t3 = time.time()
+            # print('expr', expr)
+            # print('expr without const', gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
+
+            g, vertex_count = decode_EQ_to_igraph(expr, operand_list, op_dict)
+            # t4 = time.time()
+            expr_w_const = decode_igraph_to_EQ(g)
+            # t5 = time.time()
+            # print('expr w const', expr_w_const)
+
+        except (ValueError, ValueErrorExpression, NotCorrectIndependentVariables, UnknownSymPyOperator) as e:
+            print(e)
             continue
         if len(expr) <= 1:
             continue
 
-        if add_const:
-            for i in range(len(expr)):
-                if expr[i] in ('ca', 'cm'):
-                    expr[i] = random() * const_range + const_bounds[0]
 
-        print('expr', expr)
-        print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
-
-        g, vertex_count = decode_EQ_to_igraph(expr, operand_list, op_dict)
-        expr_w_const = decode_igraph_to_EQ(g)
         if 'zoo' in expr_w_const or expr_w_const in ['0', '1']:
             continue
         valid_eq = is_valid_EQ(g)
+        # t6 = time.time()
         # print(valid_eq)
         if not valid_eq:
+            print('invalid eq')
             continue
         expr_list.append(expr)
         v_count.append(vertex_count)
