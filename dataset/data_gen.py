@@ -907,86 +907,87 @@ if __name__=="__main__":
 
 
 
-    for i in tqdm(range(eq_count)):
-        try:
-            expr, var = gen.generate_equation(rng=np.random)
-            # print('expr', expr)
-        except (ValueErrorExpression, NotCorrectIndependentVariables, UnknownSymPyOperator) as e:
-            continue
-        if len(expr) <= 1:
-            continue
-
-        g, vertex_count = gen.decode_EQ_to_igraph(expr, operand_list, op_dict)
-        expr_w_const = decode_igraph_to_EQ(g)
-        if 'zoo' in expr_w_const or expr_w_const in ['0', '1']:
-            continue
-        # print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
-        valid_eq = is_valid_EQ(g)
-        # print(valid_eq)
-        if not valid_eq:
-            continue
-        expr_list.append(expr)
-        v_count.append(vertex_count)
-    print(max(v_count), len(v_count))
-    print('total count', len(v_count), 'unique count', pd.Series([str(x) for x in expr_list]).nunique())
-    expr_list = list(pd.Series([str(x) for x in expr_list]).unique())
-
-    if dcond_mode == 'nesymres':
-        embed_func = nesymres_embed_func()
-
-    with open(dataset_file, 'w') as f:
-        f.write(str(op_dict))
-        f.write('\n')
-        f.write(str(operand_list))
-        f.write('\n')
-        x1_l = []
-        x2_l = []
-        x3_l = []
-        y_l = []
-        row_count = 0
-        for expr in tqdm(expr_list):
-            if row_count >= dataset_count:
-                break
-            infix_expr = gen.prefix_to_infix(ast.literal_eval(expr), coefficients=gen.coefficients, variables=var)
-            sympy_expr = parse_expr(infix_expr)
-            # print(sympy_expr)
-            if dcond_mode == 'nesymres':
-                dcond = nesym_res_dcond(sympy_expr, embed_func)
-            elif dcond_mode == 'poly':
-                dcond = poly_dcond(sympy_expr, poly_degree=3)
-            # print(type(dcond), dcond.shape)
-            f.write(expr + ',' + str(list(dcond.tolist())))
-            f.write('\n')
-            row_count += 1
-
-
-    # for dataset_num in range(2,3):
-    #     valid_expr = False
-    #     while not valid_expr:
-    #         try:
-    #             expr, var = gen.generate_equation(rng=np.random)
-    #             g, vertex_count = gen.decode_EQ_to_igraph(expr, operand_list, op_dict)
-    #             valid_eq = is_valid_EQ(g)
-    #             if not valid_eq:
-    #                 continue
-    #             valid_expr = True
-    #             # print('expr', expr)
-    #         except ValueErrorExpression:
-    #             continue
-    #     print(g)
-    #     infix_expr = gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var)
-    #     print(infix_expr)
-    #     sympy_expr = parse_expr(infix_expr)
-    #     print(sympy_expr)
-    #     x1_vals = np.random.rand(10000)*4 + 1
-    #     x2_vals = np.random.rand(10000)*4 + 1
+    # for i in tqdm(range(eq_count)):
+    #     try:
+    #         expr, var = gen.generate_equation(rng=np.random)
+    #         # print('expr', expr)
+    #     except (ValueErrorExpression, NotCorrectIndependentVariables, UnknownSymPyOperator) as e:
+    #         continue
+    #     if len(expr) <= 1:
+    #         continue
     #
-    #     sym_func = lambdify(['x_1', 'x_2'], sympy_expr)
-    #     y_vals = sym_func(x1_vals, x2_vals)
+    #     g, vertex_count = gen.decode_EQ_to_igraph(expr, operand_list, op_dict)
+    #     expr_w_const = decode_igraph_to_EQ(g)
+    #     if 'zoo' in expr_w_const or expr_w_const in ['0', '1']:
+    #         continue
+    #     # print(gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var))
+    #     valid_eq = is_valid_EQ(g)
+    #     # print(valid_eq)
+    #     if not valid_eq:
+    #         continue
+    #     expr_list.append(expr)
+    #     v_count.append(vertex_count)
+    # print(max(v_count), len(v_count))
+    # print('total count', len(v_count), 'unique count', pd.Series([str(x) for x in expr_list]).nunique())
+    # expr_list = list(pd.Series([str(x) for x in expr_list]).unique())
     #
-    #     df = pd.DataFrame({'x_1': x1_vals, 'x_2': x2_vals, 'y': y_vals})
-    #     df['eq'] = infix_expr
-    #     df.to_csv('sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), index=False)
+    # if dcond_mode == 'nesymres':
+    #     embed_func = nesymres_embed_func()
+    #
+    # with open(dataset_file, 'w') as f:
+    #     f.write(str(op_dict))
+    #     f.write('\n')
+    #     f.write(str(operand_list))
+    #     f.write('\n')
+    #     x1_l = []
+    #     x2_l = []
+    #     x3_l = []
+    #     y_l = []
+    #     row_count = 0
+    #     for expr in tqdm(expr_list):
+    #         if row_count >= dataset_count:
+    #             break
+    #         infix_expr = gen.prefix_to_infix(ast.literal_eval(expr), coefficients=gen.coefficients, variables=var)
+    #         print(infix_expr)
+    #         sympy_expr = parse_expr(infix_expr)
+    #         # print(sympy_expr)
+    #         if dcond_mode == 'nesymres':
+    #             dcond = nesym_res_dcond(sympy_expr, embed_func)
+    #         elif dcond_mode == 'poly':
+    #             dcond = poly_dcond(sympy_expr, poly_degree=3)
+    #         # print(type(dcond), dcond.shape)
+    #         f.write(expr + ',' + str(list(dcond.tolist())))
+    #         f.write('\n')
+    #         row_count += 1
+
+
+    for dataset_num in range(20):
+        valid_expr = False
+        while not valid_expr:
+            try:
+                expr, var = gen.generate_equation(rng=np.random)
+                g, vertex_count = gen.decode_EQ_to_igraph(expr, operand_list, op_dict)
+                valid_eq = is_valid_EQ(g)
+                if not valid_eq:
+                    continue
+                valid_expr = True
+                # print('expr', expr)
+            except:
+                continue
+        print(g)
+        infix_expr = gen.prefix_to_infix(expr, coefficients=gen.coefficients, variables=var)
+        print(infix_expr)
+        sympy_expr = parse_expr(infix_expr)
+        print(sympy_expr)
+        x1_vals = np.random.rand(10000)*4 + 1
+        x2_vals = np.random.rand(10000)*4 + 1
+        x3_vals = np.random.rand(10000)*4 + 1
+        sym_func = lambdify(['x_1', 'x_2', 'x_3'], sympy_expr)
+        y_vals = sym_func(x1_vals, x2_vals, x3_vals)
+    #
+        df = pd.DataFrame({'x_1': x1_vals, 'x_2': x2_vals, 'x_3':x3_vals, 'y': y_vals})
+        df['eq'] = infix_expr
+        df.to_csv('sr_evaluation/sr_all_ops_dataset_{}.csv'.format(dataset_num), index=False)
 
 
 
