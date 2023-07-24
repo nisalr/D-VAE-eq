@@ -583,10 +583,15 @@ class DVAE(nn.Module):
                 nn.Linear(hs * 2, nvt)
                 )  # which type of new vertex to add f(h0, hg)
         self.add_edge = nn.Sequential(
-                nn.Linear(hs * 2, hs * 4), 
+                nn.Linear(hs * 2, hs * 4),
                 nn.ReLU(),
                 nn.Linear(hs * 4, 1)
                 )  # whether to add edge between v_i and v_new, f(hvi, hnew)
+        self.edge_weights = nn.Sequential(
+                nn.Linear(hs * 2, hs * 4),
+                nn.ReLU(),
+                nn.Linear(hs * 4, 1)
+                )  # edge weight of edge between v_i and v_new
 
         # 2. gate-related
         self.gate_forward = nn.Sequential(
@@ -767,6 +772,9 @@ class DVAE(nn.Module):
         # in most cases, H0 need not be explicitly included since Hvi and H contain its information
         return self.sigmoid(self.add_edge(torch.cat([Hvi, H], -1)))
 
+    def _get_edge_weight(self, Hvi, H, H0):
+        return self.edge_weights(torch.cat([Hvi, H], -1))
+
     def decode(self, z, stochastic=True, y=None):
         # decode latent vectors z back to graphs
         # if stochastic=True, stochastically sample each action from the predicted distribution;
@@ -810,6 +818,7 @@ class DVAE(nn.Module):
                 Hvi = self._get_vertex_state(G, vi)
                 H = self._get_vertex_state(G, idx)
                 ei_score = self._get_edge_score(Hvi, H, H0)
+                edge_weight = self._get_edge_weight(Hvi, H, H0)
                 if stochastic:
                     random_score = torch.rand_like(ei_score)
                     decisions = random_score < ei_score
@@ -823,11 +832,11 @@ class DVAE(nn.Module):
                         end_vertices = set([v.index for v in g.vs.select(_outdegree_eq=0) 
                                             if v.index != g.vcount()-1])
                         for v in end_vertices:
-                            g.add_edge(v, g.vcount()-1)
+                            g.add_edge(v, g.vcount()-1, weight=edge_weight[i, 0])
                         finished[i] = True
                         continue
                     if decisions[i, 0]:
-                        g.add_edge(vi, g.vcount()-1)
+                        g.add_edge(vi, g.vcount()-1, weight=edge_weight[i, 0])
                 self._update_v(G, idx)
 
         for g in G:
@@ -874,25 +883,39 @@ class DVAE(nn.Module):
                 true_edges.append(g_true.get_adjlist(igraph.IN)[v_true] if v_true < g_true.vcount()
                                   else [])
             edge_scores = []
+            edge_weights = []
             for vi in range(v_true-1, -1, -1):
                 Hvi = self._get_vertex_state(G, vi)
                 H = self._get_vertex_state(G, v_true)
                 ei_score = self._get_edge_score(Hvi, H, H0)
+                ew_score = self._get_edge_weight(Hvi, H, H0)
                 edge_scores.append(ei_score)
+                edge_weights.append(ew_score)
                 for i, g in enumerate(G):
                     if vi in true_edges[i]:
                         g.add_edge(vi, v_true)
                 self._update_v(G, v_true)
             edge_scores = torch.cat(edge_scores[::-1], 1)
+            edge_weights = torch.cat(edge_weights[::-1], 1)
 
             ground_truth = torch.zeros_like(edge_scores)
+            ground_truth_ew = torch.zeros_like(edge_weights)
             idx1 = [i for i, x in enumerate(true_edges) for _ in range(len(x))]
             idx2 = [xx for x in true_edges for xx in x]
             ground_truth[idx1, idx2] = 1.0
+            for idx_g in range(len(ground_truth)):
+                for vi in range(len(ground_truth[idx_g])):
+                    is_edge = ground_truth[idx_g, vi]
+                    if is_edge:
+                        edge_weight = G_true[idx_g].es.find(_between=((vi,), (v_true,)))['weight']
+                        ground_truth_ew[idx_g, vi] = float(edge_weight)
+
+
 
             # edges log-likelihood
-            ell = - F.binary_cross_entropy(edge_scores, ground_truth, reduction='sum') 
-            res = res + ell
+            ell = - F.binary_cross_entropy(edge_scores, ground_truth, reduction='sum')
+            ewl = -F.mse_loss(edge_weights, ground_truth_ew, reduction='mean')
+            res = res + ell + ewl
 
         res = -res  # convert likelihood to loss
         kld = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())

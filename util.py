@@ -174,7 +174,7 @@ def decode_EQ_to_igraph(prefix, operand_list, operator_dict):
         for var_idx, var_name in enumerate(operand_list):
             g.vs[var_idx + 1]['type'] = var_idx + 2#input variable
             vertex_op_dict[var_name] = var_idx + 1
-            g.add_edge(0, var_idx + 1)
+            g.add_edge(0, var_idx + 1, weight=1)
             vertex_count += 1
         # print('vcount1', g.vcount())
 
