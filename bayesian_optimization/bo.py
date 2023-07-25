@@ -146,10 +146,10 @@ if data_type == 'ENAS':
                      # defined in ../software/enas/src/cifar10/evaluation.py
 elif data_type == 'EQ':
     if is_cond:
-        eva = Eval_EQ(sr_dataset_path='sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), embed_mode='simple',
+        eva = Eval_EQ(sr_dataset_path='sr_evaluation/sr_all_ops_dataset_{}.csv'.format(dataset_num), embed_mode='nesymres',
                       res_path=data_dir)
     else:
-        eva = Eval_EQ(sr_dataset_path='sr_evaluation/sr_dataset_{}.csv'.format(dataset_num), embed_mode=None)
+        eva = Eval_EQ(sr_dataset_path='sr_evaluation/sr_all_ops_dataset_{}.csv'.format(dataset_num), embed_mode=None)
     print('SR evaluation on dataset {}'.format(dataset_num))
 
 data = loadmat(data_dir + '{}_latent_epoch{}.mat'.format(data_name, checkpoint))  # load train/test data
