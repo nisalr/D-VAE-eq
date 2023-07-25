@@ -100,14 +100,17 @@ class Eval_EQ(object):
     def eval(self, input_string):
         '''generates score for a given equation'''
         sym_eq = parse_expr(input_string)
-        sym_func = sympy.lambdify(['x_1', 'x_2'], sym_eq)
-        x1_vals = self.sr_dataset['x_1'].values
-        x2_vals = self.sr_dataset['x_2'].values
-        y_vals = self.sr_dataset['y'].values
-        pred_y_list = sym_func(x1_vals, x2_vals)
+        if len(sym_eq.free_symbols) == 0:
+            return 0
         try:
+            sym_func = sympy.lambdify(['x_1', 'x_2', 'x_3'], sym_eq)
+            x1_vals = self.sr_dataset['x_1'].values
+            x2_vals = self.sr_dataset['x_2'].values
+            x3_vals = self.sr_dataset['x_3'].values
+            y_vals = self.sr_dataset['y'].values
+            pred_y_list = sym_func(x1_vals, x2_vals, x3_vals)
             return 1/(1 + mean_squared_error(y_vals, pred_y_list)**0.5)
-        except ValueError:
+        except:
             return 0
 
     def get_dcond(self):
