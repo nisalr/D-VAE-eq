@@ -8,21 +8,23 @@
 # Partition for the job:
 #SBATCH --partition deeplearn
 #SBATCH --qos gpgpudeeplearn 
-#SBATCH --constraint=[dlg1|dlg2|dlg3]
+##SBATCH --constraint=[dlg1|dlg2|dlg3]
+##SBATCH --partition=feit-gpu-a100
+##SBATCH --qos=feit
 
 # Number of GPUs requested per node:
 #SBATCH --gres=gpu:1
 
 # Maximum number of tasks/CPU cores used by the job:
-#SBATCH --ntasks=16
-#SBATCH --cpus-per-task=1
-#SBATCH --mem=16G
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
 
 # The maximum running time of the job in days-hours:mins:sec
 #SBATCH --time=02-00:00:0
 
 # job array
-#SBATCH --array=0-0
+#SBATCH --array=0-19
 
 # Send yourself an email when the job:
 #SBATCH --mail-user=nsranasinghe@student.unimelb.edu.au
@@ -30,19 +32,21 @@
 
 source /usr/local/module/tan_new.sh
 module load anaconda3/2021.11
+module load gcc/9.2.0
 eval "$(conda shell.bash hook)"
-conda activate dvae
+conda activate dvae_2
 #Run program
 cd ..
 python bayesian_optimization/bo.py \
-  --data-name eq_structures_7_w_vals \
-  --save-appendix DVAE_EQ_83K_w_vals_200epoch \
-  --checkpoint 300 \
-  --res-dir="EQ_results/EQ_results_25_${SLURM_ARRAY_TASK_ID}/" \
-  --BO-rounds 1 \
-  --BO-batch-size 5 \
+  --data-name eq_structures_23_nesym \
+  --save-appendix DVAE_EQ_120K_nesym_100epoch \
+  --checkpoint 100 \
+  --res-dir="EQ_results/EQ_results_47_nesym_${SLURM_ARRAY_TASK_ID}/" \
+  --BO-rounds 10 \
+  --BO-batch-size 200 \
   --random-as-test \
   --random-as-train \
   --random-baseline \
   --dnum ${SLURM_ARRAY_TASK_ID} \
-  --cond
+  --cond \
+  --cond-size 10
