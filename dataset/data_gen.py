@@ -821,16 +821,16 @@ if __name__=="__main__":
         "eos_index": 1,
         "pad_index": 0
     }
-    dataset_file = 'data/eq_structures_test.txt'
+    dataset_file = 'data/eq_structures_24_nesym_w_const.txt'
     params = GeneratorDetails(**params)
     gen = Generator(params)
 
     # eq_count = 5000000 # 350K
     # eq_count = 800000 # 120K
-    # eq_count = 100000  # 20K
-    eq_count = 1000
+    eq_count = 100000  # 20K
+    # eq_count = 1000
 
-    dataset_count = 120000 #actual number of data points needed (after removing duplicates)
+    dataset_count = 20000 #actual number of data points needed (after removing duplicates)
     add_const = True
     const_bounds = (1, 5)
     const_range = const_bounds[1] - const_bounds[0]

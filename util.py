@@ -167,8 +167,6 @@ def decode_EQ_to_igraph(prefix, operand_list, operator_dict):
         g.add_vertices(var_count + 1)
         g.vs[0]['type'] = 0  # input node
         vertex_count = 1
-        add_const_type = max(operator_dict.values()) + 1
-        mul_const_type = max(operator_dict.values()) + 2
         vertex_op_dict = {}
 
         for var_idx, var_name in enumerate(operand_list):

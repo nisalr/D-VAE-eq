@@ -556,7 +556,7 @@ class DVAE(nn.Module):
                 self.cs_red = cs
                 self.fc_cond = None
         if self.vid:
-            self.vs = hs + max_n  # vertex state size = hidden state + vid
+            self.vs = hs + 2 * max_n  # vertex state size = hidden state + vid
         else:
             self.vs = hs
 
@@ -635,6 +635,20 @@ class DVAE(nn.Module):
     def _get_zero_hidden(self, n=1):
         return self._get_zeros(n, self.hs) # get a zero hidden state
 
+    def _encoded_weights(self, g, v, length, reverse):
+        if not reverse:
+            edges = g.es.select(_target=v)
+            edge_weights = torch.FloatTensor([edge['weight'] for edge in edges]).unsqueeze(0).t()
+            neighb = torch.LongTensor([edge.source for edge in edges]).unsqueeze(0).t()
+            encoded_weights = torch.zeros((len(neighb), length)).scatter_(1, neighb, edge_weights).to(self.get_device())
+        else:
+            edges = g.es.select(_source=v)
+            edge_weights = torch.FloatTensor([edge['weight'] for edge in edges]).unsqueeze(0).t()
+            neighb = torch.LongTensor([edge.target for edge in edges]).unsqueeze(0).t()
+            encoded_weights = torch.zeros((len(neighb), length)).scatter_(1, neighb, edge_weights).to(self.get_device())
+        return encoded_weights
+
+
     def _one_hot(self, idx, length):
         if type(idx) in [list, range]:
             if idx == []:
@@ -668,15 +682,17 @@ class DVAE(nn.Module):
             H_pred = [[g.vs[x][H_name] for x in g.successors(v)] for g in G]
             if self.vid:
                 vids = [self._one_hot(g.successors(v), self.max_n) for g in G]
+                encoded_weights = [self._encoded_weights(g, v, self.max_n, reverse) for g in G]
             gate, mapper = self.gate_backward, self.mapper_backward
         else:
             H_name = 'H_forward'  # name of the hidden states attribute
             H_pred = [[g.vs[x][H_name] for x in g.predecessors(v)] for g in G]
             if self.vid:
                 vids = [self._one_hot(g.predecessors(v), self.max_n) for g in G]
+                encoded_weights = [self._encoded_weights(g, v, self.max_n, reverse) for g in G]
             gate, mapper = self.gate_forward, self.mapper_forward
         if self.vid:
-            H_pred = [[torch.cat([x[i], y[i:i+1]], 1) for i in range(len(x))] for x, y in zip(H_pred, vids)]
+            H_pred = [[torch.cat([x[i], y[i:i+1], z[i:i+1]], 1) for i in range(len(x))] for x, y, z in zip(H_pred, vids, encoded_weights)]
         # if h is not provided, use gated sum of v's predecessors' states as the input hidden state
         if H is None:
             max_n_pred = max([len(x) for x in H_pred])  # maximum number of predecessors
@@ -893,7 +909,8 @@ class DVAE(nn.Module):
                 edge_weights.append(ew_score)
                 for i, g in enumerate(G):
                     if vi in true_edges[i]:
-                        g.add_edge(vi, v_true)
+                        true_edge_weight = G_true[i].es.find(_between=((vi,), (v_true,)))['weight']
+                        g.add_edge(vi, v_true, weight=true_edge_weight)
                 self._update_v(G, v_true)
             edge_scores = torch.cat(edge_scores[::-1], 1)
             edge_weights = torch.cat(edge_weights[::-1], 1)
