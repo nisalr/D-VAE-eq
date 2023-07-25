@@ -29,6 +29,7 @@ for folder in results_folders:
             df_cur['true_eq'] = true_eq
             df_list.append(df_cur)
         results_df = pd.concat(df_list, axis=0).sort_values('score', ascending=False).iloc[[0]]
+        results_df['num_seeds'] = len(best_score_files)
         all_results_l.append(results_df)
 all_results = pd.concat(all_results_l).sort_values('file_no')
 all_results['is_solution'] = all_results.apply(
