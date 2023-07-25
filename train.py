@@ -85,6 +85,7 @@ parser.add_argument('--cond', action='store_true', default=False,
 parser.add_argument('--cond-size', type=int, default=None,
                     help='size of the dataset embedding vector')
 
+pred_factor = 0.0001
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 torch.manual_seed(args.seed)
@@ -99,12 +100,21 @@ print(args)
 is_cond = args.cond
 cond_size = args.cond_size
 pred_cond_size = cond_size
+
 if args.predictor:
-    model_cond_size = None
-    is_model_cond = False
+    if is_cond:
+        model_cond_size = cond_size
+        is_model_cond = True
+    else:
+        model_cond_size = None
+        is_model_cond = False
 else:
-    model_cond_size = cond_size
-    is_model_cond = True
+    if is_cond:
+        model_cond_size = cond_size
+        is_model_cond = True
+    else:
+        model_cond_size = False
+        is_model_cond = False
 
 '''Prepare data'''
 args.file_dir = os.path.dirname(os.path.realpath('__file__'))
@@ -268,7 +278,7 @@ def train(epoch):
                     y_pred = model.predictor(mu)
                     y_cond_batch = torch.cuda.FloatTensor(y_cond_batch)
                     pred = model.mseloss(y_pred, y_cond_batch)
-                    loss += pred
+                    loss += pred_factor * pred
                     pbar.set_description('Epoch: %d, loss: %0.4f, recon: %0.4f, kld: %0.4f, pred: %0.4f'\
                             % (epoch, loss.item()/len(g_batch), recon.item()/len(g_batch), 
                             kld.item()/len(g_batch), pred/len(g_batch)))
@@ -354,8 +364,9 @@ def test():
             if args.predictor:
                 y_batch = torch.FloatTensor(y_batch).unsqueeze(1).to(device)
                 y_pred = model.predictor(mu)
-                pred = model.mseloss(y_pred, y_batch)
-                pred_loss += pred.item()
+                y_cond_batch = torch.cuda.FloatTensor(y_cond_batch)
+                pred = model.mseloss(y_pred, y_cond_batch)
+                pred_loss += pred_factor * pred.item()
             # construct igraph g from tensor g to check recon quality
             if args.model.startswith('SVAE'):  
                 g = model.construct_igraph(g[:, :, :model.nvt], g[:, :, model.nvt:], False)
@@ -405,6 +416,7 @@ def prior_validity(scale_to_train_range=False):
         G_train = model.construct_igraph(G_train[:, :, :model.nvt], G_train[:, :, model.nvt:], False)
     pbar = tqdm(range(n_latent_points))
     cnt = 0
+    print('G train length,', len(G_train))
     for i in pbar:
         cnt += 1
         if cnt == args.infer_batch_size or i == n_latent_points - 1:
@@ -442,7 +454,7 @@ def prior_validity(scale_to_train_range=False):
     G_valid_str = [decode_igraph_to_ENAS(g) for g in G_valid]
     r_unique = len(set(G_valid_str)) / len(G_valid_str) if len(G_valid_str)!=0 else 0.0
     print('Ratio of unique decodings from the prior: {:.4f}'.format(r_unique))
-
+    print('G train length,', len(G_train))
     r_novel = 1 - ratio_same_DAG(G_train, G_valid)
     print('Ratio of novel graphs out of training data: {:.4f}'.format(r_novel))
     return r_valid, r_unique, r_novel
