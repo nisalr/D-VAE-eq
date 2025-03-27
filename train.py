@@ -84,6 +84,8 @@ parser.add_argument('--cond', action='store_true', default=False,
                     help='condition DVAE on dataset')
 parser.add_argument('--cond-size', type=int, default=None,
                     help='size of the dataset embedding vector')
+parser.add_argument('--cs-red', type=int, default=40,
+                    help='dimension of the reduced condition vector')
 
 pred_factor = 0.0001
 args = parser.parse_args()
@@ -187,7 +189,8 @@ model = eval(args.model)(
         hs=args.hs, 
         nz=args.nz, 
         bidirectional=args.bidirectional,
-        cs=model_cond_size
+        cs=model_cond_size,
+        cs_red=args.cs_red
         )
 if args.predictor:
     predictor = nn.Sequential(
