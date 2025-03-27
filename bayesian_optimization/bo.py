@@ -76,6 +76,8 @@ parser.add_argument('--cond', action='store_true', default=False,
                     help='condition DVAE on dataset')
 parser.add_argument('--cond-size', type=int, default=None,
                     help='size of the dataset embedding vector')
+parser.add_argument('--cs-red', type=int, default=40,
+                    help='dimension of the reduced condition vector')
 
 args = parser.parse_args()
 data_name = args.data_name
@@ -91,7 +93,7 @@ vis_2d = args.vis_2d
 dataset_num = args.dnum
 is_cond = args.cond
 cond_size = args.cond_size
-
+cs_red = args.cs_red
 '''Load hyperparameters'''
 with open(data_dir + 'cmd_input.txt', 'r') as f:
     cmd_input = f.readline()
@@ -193,7 +195,7 @@ for rand_idx in range(1,bo_seed_count + 1):
             nz=nz, 
             bidirectional=bidir,
             cs=cond_size,
-            cs_red=40
+            cs_red=cs_red
             )
 
     print('start end', hs, nz, nvt, max_n, graph_args.START_TYPE, graph_args.END_TYPE)
